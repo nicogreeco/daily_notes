@@ -267,35 +267,117 @@ Please analyze these daily notes and generate a weekly summary.
             'blockers': '- Please review daily notes manually',
             'next_focus': 'Manual review needed'
         }
-    
+        
     def get_weekly_template(self) -> str:
         """Get template for weekly summary"""
         return """---
-tags: [timeline, weekly-summary, project/{project_name}]
-week: {week_id}
-date_range: {date_range}
----
+    tags: [timeline, weekly-summary, project/{project_name}]
+    week: {week_id}
+    date_range: {date_range}
+    ---
 
-# Week {week_id}: {date_range} - {project_name}
+    # Week {week_id}: {date_range} - {project_name}
 
-## 📊 Week Summary
-{week_summary}
+    ## 📊 Week Summary
+    {week_summary}
 
-## 🎯 Key Accomplishments
-{accomplishments}
+    ## 🎯 Key Accomplishments
+    {accomplishments}
 
-## 💭 Insights & Thoughts
-{insights}
+    ## 💭 Insights & Thoughts
+    {insights}
 
-## 🚧 Progress Indicators
-{blockers}
+    ## 🚧 Progress Indicators
+    {blockers}
 
-## 📝 Next Week Focus
-{next_focus}
+    ## 📝 Next Week Focus
+    {next_focus}
 
-## 📄 Daily Notes References
-{daily_notes_links}
-"""
+    {completed_todos_section}
+
+    ## 📄 Daily Notes References
+    {daily_notes_links}
+    """
+
+    def find_completed_todos(self, project_name: str) -> List[Dict]:
+        """Find completed todos in project's todo list"""
+        todo_path = self.config.projects_path / project_name / "todo.md"
+        if not todo_path.exists():
+            return []
+            
+        completed_todos = []
+        try:
+            with open(todo_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Find completed todos (checked boxes)
+            # Match pattern: - [x] 🔴|🟠|🟢 Task text _context_ *[[source_note|Source]]*
+            todo_pattern = r'- \[x\] (🔴|🟠|🟢)? ?(.*?)( _.*?_)? \*\[\[(.*?)\|(Source)\]\]\* *\n'
+            
+            # Try alternative patterns if needed
+            if not re.search(todo_pattern, content):
+                todo_pattern = r'- \[x\] (🔴|🟠|🟢)? ?(.*?)( _.*?_)? \*\[\[(.*?)\]\]\* *\n'
+                
+            for match in re.finditer(todo_pattern, content):
+                priority_icon = match.group(1) or ""
+                task_text = match.group(2).strip()
+                context = match.group(3) or ""
+                source = match.group(4) or ""
+                
+                # Determine priority from icon
+                priority = "medium"  # default
+                if priority_icon == "🔴":
+                    priority = "high"
+                elif priority_icon == "🟠":
+                    priority = "medium"
+                elif priority_icon == "🟢":
+                    priority = "low"
+                    
+                # Clean up context (remove leading/trailing underscore)
+                if context:
+                    context = context.strip().strip('_')
+                    
+                completed_todos.append({
+                    "task": task_text,
+                    "priority": priority,
+                    "context": context,
+                    "source": source
+                })
+                
+            return completed_todos
+        except Exception as e:
+            print(f"Error finding completed todos: {e}")
+            return []
+
+    def clean_completed_todos(self, project_name: str) -> int:
+        """Remove completed todos from todo list and return count of removed items"""
+        todo_path = self.config.projects_path / project_name / "todo.md"
+        if not todo_path.exists():
+            return 0
+            
+        try:
+            with open(todo_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Replace completed todos with empty string
+            # - [x] 🔴|🟠|🟢 Task text _context_ *[[source_note|Source]]*
+            new_content = re.sub(r'- \[x\] (🔴|🟠|🟢)? ?.*?( _.*?_)? \*\[\[.*?\|Source\]\]\* *\n', '', content)
+            
+            # Try alternative pattern if needed
+            if new_content == content:
+                new_content = re.sub(r'- \[x\] (🔴|🟠|🟢)? ?.*?( _.*?_)? \*\[\[.*?\]\]\* *\n', '', content)
+            
+            # Count removed items
+            removed_count = content.count('- [x]')
+            
+            # Write updated content
+            with open(todo_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+                
+            return removed_count
+        except Exception as e:
+            print(f"Error cleaning completed todos: {e}")
+            return 0
 
     def create_weekly_summary_file(self, project_name: str, year: int, week: int) -> Optional[Path]:
         """Create weekly summary file for a project"""
@@ -330,16 +412,38 @@ date_range: {date_range}
         # Generate weekly summary
         summary = self.generate_weekly_summary(project_name, year, week, notes_content)
         
+        # Find and clean completed todos
+        completed_todos = self.find_completed_todos(project_name)
+        cleaned_count = self.clean_completed_todos(project_name)
+        
+        # Create completed todos section if tracking is enabled
+        completed_todos_section = ""
+        if self.config.track_completed_todos and completed_todos:
+            completed_todos_section = "## ✅ Completed Tasks\n"
+            for todo in completed_todos:
+                priority_indicator = ""
+                if todo.get("priority") == "high":
+                    priority_indicator = "🔴 "
+                elif todo.get("priority") == "medium":
+                    priority_indicator = "🟠 "
+                elif todo.get("priority") == "low":
+                    priority_indicator = "🟢 "
+                    
+                task_text = todo["task"]
+                context = todo.get("context", "")
+                source = todo.get("source", "")
+                
+                completed_todos_section += f"- {priority_indicator}{task_text}"
+                if context:
+                    completed_todos_section += f" _{context}_"
+                completed_todos_section += f" *[[{source}|Source]]* \n"
+            completed_todos_section += "\n"
+        
         # Create links to daily notes
         daily_links = []
         for date_str, file_path in sorted(weekly_notes[year_week].items()):
-            # relative_path = os.path.relpath(file_path, self.config.projects_path / project_name / "timeline")
-            # Convert Windows paths to forward slashes for Markdown 
-            # relative_path = relative_path.replace('\\', '/')
-            # daily_links.append(f"- [{date_str}: Daily Log]({relative_path})")
             note_file_name = os.path.basename(file_path)
             daily_links.append(f"- [{date_str}: Daily Log]({note_file_name})")
-
         
         daily_notes_links = "\n".join(daily_links)
         
@@ -353,6 +457,7 @@ date_range: {date_range}
             insights=summary['insights'],
             blockers=summary['blockers'],
             next_focus=summary['next_focus'],
+            completed_todos_section=completed_todos_section,
             daily_notes_links=daily_notes_links
         )
         
@@ -367,8 +472,11 @@ date_range: {date_range}
             f.write(content)
         
         print(f"Created weekly summary: {week_file.name}")
+        if cleaned_count > 0:
+            print(f"Cleaned {cleaned_count} completed todos from todo list")
+        
         return week_file
-    
+
     def update_timeline_index(self, project_name: str) -> Optional[Path]:
         """Update master timeline index file"""
         project_path = self.config.projects_path / project_name

@@ -57,7 +57,7 @@ class Config:
                 yaml.dump(default_config, f, default_flow_style=False, indent=2)
             print(f"Created default configuration at {config_file}")
             return default_config
-    
+        
     def _get_default_config(self) -> Dict:
         """Generate default configuration"""
         return {
@@ -87,7 +87,8 @@ class Config:
                 'compute_type': 'float32',
                 'cpu_threads': 4,
                 'num_workers': 2,
-                'assembly_model': 'slam'
+                'assembly_model': 'slam',
+                'track_completed_todos': True  # New option to track completed todos in weekly summaries
             },
             'output': {
                 'date_format': '%Y-%m-%d',
@@ -97,7 +98,7 @@ class Config:
                 'transcript_folder': 'transcripts'  # Default folder name
             }
         }
-        
+            
     def get_available_projects(self) -> List[str]:
         """Get list of available projects from projects folder"""
         available_projects = []
@@ -165,6 +166,10 @@ class Config:
     @property
     def beam_size(self) -> int:
         return self.config_data['processing'].get('beam_size', 5)
+
+    @property
+    def track_completed_todos(self) -> bool:
+        return self.config_data['processing'].get('track_completed_todos', True)
 
     @property
     def language_code(self) -> str:

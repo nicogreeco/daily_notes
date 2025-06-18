@@ -1,5 +1,6 @@
 config/*.txt
-__pychache__/*
-src/__pychache__/*
+__pychache__/
+src/__pychache__/
+AudioInbox/*
 *.pyc
 *mp3

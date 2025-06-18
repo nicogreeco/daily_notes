@@ -1,5 +1,5 @@
 config/*.txt
 __pychache__/*
-scr/__pychache__/*
+src/__pychache__/*
 *.pyc
 *mp3

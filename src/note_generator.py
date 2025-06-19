@@ -54,14 +54,13 @@ tags: [daily, work-log, project/{project_name}]
 Given a transcript of someone describing their workday, extract and organize the information into these specific categories:
 
 **Project**: Identify which project the person is working on from this list: [{projects_list}]
-**Summary**: A max 150 words overview of the day's work
+**Summary**: A max 200 words overview of the day's work
 **Completed**: Specific tasks, features, or goals that were finished
 **In Progress/Blockers**: Current work and any obstacles encountered
 **Next Steps**: Plans for upcoming work
 **Thoughts & Ideas**: Insights, learnings, or creative ideas mentioned
 
 Guidelines:
-- Use bullet points for lists
 - Be specific and actionable
 - If information for a section isn't mentioned, write "None mentioned"
 - Maintain the speaker's tone but make it more structured and improve readibility

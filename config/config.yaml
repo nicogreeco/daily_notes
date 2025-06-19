@@ -1,5 +1,5 @@
 audio:
-  delete_after_processing: false
+  delete_after_processing: true
   input_folder: AudioInbox
   max_duration_seconds: 1800
   min_duration_seconds: 5

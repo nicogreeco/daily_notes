@@ -4,12 +4,20 @@ from datetime import datetime
 from openai import OpenAI
 
 class TodoManager:
-    def __init__(self, config, api_key, model=None, temperature=0.3):
+    def __init__(self, config, api_key=None, model=None, temperature=0.3):
         """Initialize the todo manager"""
         self.config = config
-        self.client = OpenAI(api_key=api_key)
-        # Use the model from config if not specified
-        self.model = model if model is not None else config.gpt_model
+        
+        if self.config.llm_provider == 'deepseek':
+            self.client = OpenAI(
+                api_key=self.config.deepseek_api_key, 
+                base_url="https://api.deepseek.com"
+            )
+        else:  # default to openai
+            self.client = OpenAI(api_key=self.config.openai_api_key)
+        
+        # Use provided model or default from config
+        self.model = model if model is not None else self.config.gpt_model
         self.temperature = temperature
     
     def create_system_prompt(self):

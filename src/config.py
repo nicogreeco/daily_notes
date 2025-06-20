@@ -16,6 +16,7 @@ class Config:
         # Load API keys
         self.openai_api_key = self._load_api_key("openai")
         self.assembly_api_key = self._load_api_key("assembly")
+        self.deepseek_api_key = self._load_api_key("deepseek")
 
     def _load_api_key(self, service: str) -> str:
         """Load API key from separate file"""
@@ -76,8 +77,9 @@ class Config:
             },
             'processing': {
                 'whisper_model': 'base',  # base, small, medium, large
-                'gpt_model': 'gpt-4o-mini',
-                'weekly_summary_model': 'gpt-4o-mini',  # New option for weekly summaries
+                'llm_provider': 'openai',  # Options: openai, deepseek
+                'model': 'gpt-4.1-mini',    # Model name for chosen provider
+                'weekly_summary_model': 'gpt-4.1', # Model for weekly summaries
                 'temperature': 0.3,
                 'max_tokens': 2000,
                 'audio_model': 'whisper',
@@ -176,8 +178,16 @@ class Config:
         return self.config_data['processing'].get('language_code', 'en')
     
     @property
+    def llm_provider(self) -> str:
+        return self.config_data['processing'].get('llm_provider', 'openai')
+
+    @property
     def gpt_model(self) -> str:
-        return self.config_data['processing']['gpt_model']
+        return self.config_data['processing'].get('model', 'gpt-4o-mini')
+
+    @property
+    def weekly_summary_model(self) -> str:
+        return self.config_data['processing'].get('weekly_summary_model', self.gpt_model)
     
     @property
     def temperature(self) -> float:
@@ -194,10 +204,6 @@ class Config:
     @property
     def transcript_folder(self) -> str:
         return self.config_data['output'].get('transcript_folder', 'transcripts')
-
-    @property
-    def weekly_summary_model(self) -> str:
-        return self.config_data['processing'].get('weekly_summary_model', self.gpt_model)
     
     @property
     def compute_type(self) -> str:

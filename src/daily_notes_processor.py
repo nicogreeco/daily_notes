@@ -17,17 +17,18 @@ class DailyNotesProcessor:
         self.config = Config(config_path)
         self.audio_processor = AudioProcessor(self.config)
         self.audio_recorder = AudioRecorder()
+        
+        # No need to pass API keys - they're handled in the constructors
         self.note_generator = NoteGenerator(
             self.config,
-            self.config.openai_api_key,
-            self.config.config_data['processing']['gpt_model'],
-            self.config.config_data['processing']['temperature']
+            model=self.config.gpt_model,
+            temperature=self.config.temperature
         )
+        
         self.timeline_generator = TimelineGenerator(
             self.config,
-            self.config.openai_api_key,
-            self.config.weekly_summary_model,  # Use the weekly summary model
-            self.config.config_data['processing']['temperature']
+            model=self.config.weekly_summary_model,
+            temperature=self.config.temperature
         )
         
         # Initialize TodoExtractor
@@ -35,7 +36,7 @@ class DailyNotesProcessor:
             self.config,
             self.note_generator,
             self.audio_processor
-        )
+    )
         
         # Create necessary folders
         self._setup_folders()
@@ -407,7 +408,8 @@ class DailyNotesProcessor:
             print(f"  AssemblyAI model: {self.config.assembly_model}")
         
         # LLM settings
-        print(f"GPT Model: {self.config.gpt_model}")
+        print(f"LLM Provider: {self.config.llm_provider}")
+        print(f"Model: {self.config.gpt_model}")
         print(f"Weekly Summary Model: {self.config.weekly_summary_model}")
 
     def _generate_timeline(self):

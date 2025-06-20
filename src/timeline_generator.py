@@ -7,12 +7,20 @@ from openai import OpenAI
 import json
 
 class TimelineGenerator:
-    def __init__(self, config, api_key: str, model: str = None, temperature: float = 0.3):
+    def __init__(self, config, api_key: str = None, model: str = None, temperature: float = 0.3):
         """Initialize timeline generator"""
         self.config = config
-        self.client = OpenAI(api_key=api_key)
-        # Use weekly_summary_model from config if model not specified
-        self.model = model if model is not None else config.weekly_summary_model
+        
+        if self.config.llm_provider == 'deepseek':
+            self.client = OpenAI(
+                api_key=self.config.deepseek_api_key, 
+                base_url="https://api.deepseek.com"
+            )
+        else:  # default to openai
+            self.client = OpenAI(api_key=self.config.openai_api_key)
+        
+        # Use provided model or default from config
+        self.model = model if model is not None else self.config.weekly_summary_model
         self.temperature = temperature
     
     def get_week_number(self, date_str: str) -> Tuple[int, int]:

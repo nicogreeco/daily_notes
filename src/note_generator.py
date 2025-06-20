@@ -10,10 +10,17 @@ class NoteGenerator:
     def __init__(self, config, api_key: str, model: str = "gpt-4o", temperature: float = 0.3):
         """Initialize OpenAI client"""
         self.config = config
-        self.client = OpenAI(api_key=api_key)
-        self.model = model
+        if self.config.llm_provider == 'deepseek':
+            self.client = OpenAI(
+                api_key=self.config.deepseek_api_key, 
+                base_url="https://api.deepseek.com"
+            )
+        else:  # default to openai
+            self.client = OpenAI(api_key=self.config.openai_api_key)
+        self.model = model if model is not None else self.config.gpt_model
         self.temperature = temperature
-        self.todo_manager = TodoManager(config, api_key, model, temperature)
+        self.todo_manager = TodoManager(config, temperature=temperature)
+        # self.todo_manager = TodoManager(config, api_key, model, temperature)
         
     def get_daily_note_template(self) -> str:
         """Get the daily note template"""

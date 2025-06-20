@@ -9,6 +9,8 @@ Usage:
     python main.py --todos audio.mp3  # Extract todos only from file
 """
 
+import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 import argparse
 import sys
 from pathlib import Path

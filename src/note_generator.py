@@ -7,7 +7,7 @@ from typing import List
 from .todo_manager import TodoManager
 
 class NoteGenerator:
-    def __init__(self, config, api_key: str, model: str = "gpt-4o", temperature: float = 0.3):
+    def __init__(self, config, api_key: str = None, model: str = "gpt-4o", temperature: float = 0.3):
         """Initialize OpenAI client"""
         self.config = config
         if self.config.llm_provider == 'deepseek':

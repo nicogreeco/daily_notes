@@ -28,17 +28,17 @@ class AndroidNotesProcessor:
         """Initialize the processor for Android"""
         self.config = Config(config_path)
         self.audio_processor = AndroidAudioProcessor(self.config)
+        
+        # Update these initializations to match the new structure
         self.note_generator = NoteGenerator(
             self.config,
-            self.config.openai_api_key,
-            self.config.config_data['processing']['gpt_model'],
-            self.config.config_data['processing']['temperature']
+            model=self.config.gpt_model,
+            temperature=self.config.config_data['processing']['temperature']
         )
         self.timeline_generator = TimelineGenerator(
             self.config,
-            self.config.openai_api_key,
-            self.config.weekly_summary_model,
-            self.config.config_data['processing']['temperature']
+            model=self.config.weekly_summary_model,
+            temperature=self.config.config_data['processing']['temperature']
         )
         
         # Print app header

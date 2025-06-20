@@ -26,26 +26,41 @@ output_lock = threading.Lock()
 current_process = None
 
 def capture_output(func):
-    """Decorator to capture console output"""
+    """Decorator to capture console output in real-time"""
     def wrapper(*args, **kwargs):
         global output_buffer, current_process
         
-        # Clear previous output
+        # Clear previous output and set current process
         with output_lock:
             output_buffer = []
             current_process = func.__name__
         
-        # Capture stdout and run function
-        buffer = io.StringIO()
-        with redirect_stdout(buffer):
+        # Create a custom stdout handler that writes to our buffer
+        class StreamToBuffer:
+            def write(self, text):
+                if text.strip():  # Only capture non-empty output
+                    with output_lock:
+                        output_buffer.append(text)
+                    # Also write to the real stdout
+                    sys.__stdout__.write(text)
+                    sys.__stdout__.flush()
+            
+            def flush(self):
+                sys.__stdout__.flush()
+        
+        # Redirect stdout
+        old_stdout = sys.stdout
+        sys.stdout = StreamToBuffer()
+        
+        try:
             result = func(*args, **kwargs)
-        
-        # Store output
-        with output_lock:
-            output_buffer.append(buffer.getvalue())
-            current_process = None
-        
-        return result
+            return result
+        finally:
+            # Restore stdout and mark process as complete
+            sys.stdout = old_stdout
+            with output_lock:
+                current_process = None
+    
     return wrapper
 
 class WebProcessor:
@@ -220,11 +235,11 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 </style>
             </head>
             <body>
-                <h1>📱 Daily Notes Processor</h1>
+                <h1> Daily Notes Processor</h1>
                 
                 <div class="section">
                     <div class="card">
-                        <h2>🎤 Process Audio Files</h2>
+                        <h2> Process Audio Files</h2>
                         <p>Found {len(audio_files)} audio files in inbox</p>
                         
                         {('<div class="file-list">' + 
@@ -242,7 +257,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 
                 <div class="section">
                     <div class="card">
-                        <h2>📅 Generate Timeline</h2>
+                        <h2> Generate Timeline</h2>
                         <p>Found {len(projects)} projects</p>
                         
                         <form action="/generate_timeline_project" method="get" class="project-form">
@@ -261,7 +276,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div class="section">
-                    <a href="/settings" class="button orange">⚙️ Show Settings</a>
+                    <a href="/settings" class="button orange"> Show Settings</a>
                 </div>
                 
                 <div class="section">
@@ -296,10 +311,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                                     statusArea.scrollTop = statusArea.scrollHeight;
                                 }}
                                 
-                                // Continue polling if a process is running
-                                if (data.running) {{
-                                    setTimeout(updateOutput, 1000);
-                                }}
+                                // Continue polling - more frequently if a process is running
+                                setTimeout(updateOutput, data.running ? 500 : 2000);
                             }});
                     }}
                     

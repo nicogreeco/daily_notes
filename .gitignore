@@ -1,4 +1,4 @@
-config/*.txt
+config/*api_key*.txt
 __pychache__/
 src/__pychache__/
 AudioInbox/*

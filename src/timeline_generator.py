@@ -5,6 +5,7 @@ from typing import List, Dict, Tuple, Optional
 import os
 from openai import OpenAI
 import json
+from .debug_utils import DebugLogger
 
 class TimelineGenerator:
     def __init__(self, config, api_key: str = None, model: str = None, temperature: float = 0.3):
@@ -182,6 +183,9 @@ Guidelines:
 
 Format your response as a JSON object with these keys: week_summary, accomplishments, insights, blockers, next_focus
 Each key should contain a string value with markdown formatting.
+For bullet points, use a single string with each item prefixed by "- " and separated by "\\n".
+Do NOT return arrays/lists for any field, only strings.
+If a section has no relevant content, use the string "None applicable".
 """
 
     def generate_weekly_summary(self, project_name: str, year: int, week: int, 
@@ -217,21 +221,44 @@ Please analyze these daily notes and generate a weekly summary.
 """
 
         try:
-            # Tokens for a 5 daily notes week summarazitaion are around 2500 (Input + Output)
+            system_prompt = self.create_system_prompt()
+            
+            # Prepare messages
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            # Tokens for a 5 daily notes week summarization are around 2500 (Input + Output)
             response = self.client.chat.completions.create(
                 model=self.model,
                 temperature=self.temperature,
-                messages=[
-                    {"role": "system", "content": self.create_system_prompt()},
-                    {"role": "user", "content": user_prompt}
-                ]
+                messages=messages
             )
             
             content = response.choices[0].message.content
             
+            # For debugging - save the conversation
+            week_id = self.get_week_identifier(year, week)
+            if self.config.debug_llm:
+                DebugLogger.save_llm_conversation(
+                    self.config, 
+                    source_type='weekly',
+                    model=self.model,
+                    temperature=self.temperature,
+                    messages=messages,
+                    response=content,
+                    reference_id=f"{week_id}_{project_name}"
+                )
+            
             # Parse the JSON response
             try:
-                return json.loads(content)
+                # Clean up content for better parsing
+                cleaned_content = self._clean_json_response(content)
+                result = json.loads(cleaned_content)
+                
+                # Normalize the response format
+                return self._normalize_response_format(result)
             except json.JSONDecodeError:
                 # Fallback if JSON parsing fails
                 return self._parse_fallback_response(content)
@@ -239,7 +266,50 @@ Please analyze these daily notes and generate a weekly summary.
         except Exception as e:
             print(f"Error generating weekly summary: {e}")
             return self._create_error_response()
-    
+
+    def _clean_json_response(self, content):
+        """Clean up JSON response string to make it more likely to parse correctly"""
+        # If the content starts with a code block marker, remove it
+        if content.startswith("```json") or content.startswith("```"):
+            lines = content.strip().split("\n")
+            # Remove first and last lines if they're markdown code block markers
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            content = "\n".join(lines)
+        
+        return content.strip()
+
+    def _normalize_response_format(self, parsed_content):
+        """Normalize response format to handle different LLM output structures"""
+        normalized = {}
+        
+        # Standard fields that should exist in the response
+        fields = ['week_summary', 'accomplishments', 'insights', 'blockers', 'next_focus']
+        
+        for field in fields:
+            # Get the value or default to "None applicable"
+            value = parsed_content.get(field, "None applicable")
+            
+            # Handle the case where value is a list (like from Deepseek)
+            if isinstance(value, list):
+                # Join list items with newlines
+                value = "\n".join(value)
+            
+            # If value is empty string, replace with "None applicable"
+            if value == "":
+                value = "None applicable"
+                
+            # Fix bullet points formatting
+            if field != 'week_summary' and field != 'next_focus':
+                if not value.startswith("- ") and value != "None applicable":
+                    value = "- " + value.replace("\n", "\n- ")
+            
+            normalized[field] = value
+        
+        return normalized
+                
     def _parse_fallback_response(self, content: str) -> Dict[str, str]:
         """Fallback parser if JSON response fails"""
         sections = {

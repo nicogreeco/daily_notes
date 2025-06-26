@@ -21,7 +21,7 @@ class DailyNotesProcessor:
         # No need to pass API keys - they're handled in the constructors
         self.note_generator = NoteGenerator(
             self.config,
-            model=self.config.gpt_model,
+            model=self.config.model,
             temperature=self.config.temperature
         )
         
@@ -36,7 +36,7 @@ class DailyNotesProcessor:
             self.config,
             self.note_generator,
             self.audio_processor
-    )
+        )
         
         # Create necessary folders
         self._setup_folders()
@@ -409,7 +409,7 @@ class DailyNotesProcessor:
         
         # LLM settings
         print(f"LLM Provider: {self.config.llm_provider}")
-        print(f"Model: {self.config.gpt_model}")
+        print(f"Model: {self.config.model}")
         print(f"Weekly Summary Model: {self.config.weekly_summary_model}")
 
     def _generate_timeline(self):

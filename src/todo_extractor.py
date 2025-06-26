@@ -72,7 +72,7 @@ class TodoExtractor:
             available_projects = self.config.get_available_projects()
             
             # Generate content from transcript to extract project
-            content = self.note_generator.generate_note_content(transcript_data['text'], available_projects)
+            content, _ = self.note_generator.generate_note_content(transcript_data['text'], available_projects)
             
             # Extract detected project
             project_name = content.get('project', 'Unknown')

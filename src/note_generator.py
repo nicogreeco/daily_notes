@@ -5,9 +5,10 @@ from typing import Dict, Any
 import re
 from typing import List
 from .todo_manager import TodoManager
+from .debug_utils import DebugLogger
 
 class NoteGenerator:
-    def __init__(self, config, api_key: str = None, model: str = "gpt-4o", temperature: float = 0.3):
+    def __init__(self, config,  model: str = "gpt-4o", temperature: float = 0.3):
         """Initialize OpenAI client"""
         self.config = config
         if self.config.llm_provider == 'deepseek':
@@ -17,7 +18,7 @@ class NoteGenerator:
             )
         else:  # default to openai
             self.client = OpenAI(api_key=self.config.openai_api_key)
-        self.model = model if model is not None else self.config.gpt_model
+        self.model = model if model is not None else self.config.model
         self.temperature = temperature
         self.todo_manager = TodoManager(config, temperature=temperature)
         # self.todo_manager = TodoManager(config, api_key, model, temperature)
@@ -69,7 +70,7 @@ Given a transcript of someone describing their workday, extract and organize the
 
 Guidelines:
 - Be specific and actionable
-- If information for a section isn't mentioned, write "None mentioned"
+- If information for a section isn't mentioned, use "None mentioned"
 - Maintain the speaker's tone but make it more structured and improve readibility
 - Extract concrete details like feature names, technologies, metrics when mentioned
 - If the transcript is unclear, note this appropriately
@@ -77,8 +78,12 @@ Guidelines:
 - If no clear project is mentioned or none match, use "Unknown"
 
 Format your response as a JSON object with keys: project, summary, completed, blockers, next_steps, thoughts
-Each key should contain a string value with markdown formatting (bullet points using -).
-If a section has no relevant content, use an empty string.
+Each key should contain a string value with markdown formatting.
+For bullet points, use a single string with each item prefixed by "- " and separated by "\n" (not "\\n").
+Do NOT return arrays/lists for any field, only strings.
+If a section has no relevant content, use the string "None mentioned".
+
+IMPORTANT: Return ONLY the raw JSON without any code block formatting. Do NOT wrap your response in ```json or ``` markers.
 """
 
     def _fix_bullet_points(self, text: str) -> str:
@@ -94,72 +99,118 @@ If a section has no relevant content, use an empty string.
         """Generate structured note content from transcript using GPT"""
         
         user_prompt = f"""
-Available Projects: {', '.join(available_projects)}
+    Available Projects: {', '.join(available_projects)}
 
-Audio Transcript:
-{transcript}
+    Audio Transcript:
+    {transcript}
 
-Please analyze this transcript and extract the structured information as requested. Pay special attention to identifying which project is being discussed, even if the transcription might be slightly inaccurate.
-"""
+    Please analyze this transcript and extract the structured information as requested. Pay special attention to identifying which project is being discussed, even if the transcription might be slightly inaccurate.
+    """
 
         try:
+            system_prompt = self.create_system_prompt(available_projects)
+            
+            # Prepare messages
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
             # A note request has around 1000 tokens (input and output) for an audio of 2:30 mins
-
             response = self.client.chat.completions.create(
                 model=self.model,
                 temperature=self.temperature,
-                messages=[
-                    {"role": "system", "content": self.create_system_prompt(available_projects)},
-                    {"role": "user", "content": user_prompt}
-                ]
+                messages=messages
             )
+            
             content = response.choices[0].message.content
+            
+            # For debugging - save the conversation
+            date_str = datetime.now().strftime('%Y-%m-%d')
+            if self.config.debug_llm:
+                DebugLogger.save_llm_conversation(
+                    self.config, 
+                    source_type='daily_note',
+                    model=self.model,
+                    temperature=self.temperature,
+                    messages=messages,
+                    response=content,
+                    reference_id=f"{date_str}_note_{self.config.llm_provider}"
+                )
             
             # Try to parse JSON response
             import json
             try:
                 parsed_content = json.loads(content)
-                # Fix any remaining \n- in bullet points
-                for key in parsed_content:
-                    if isinstance(parsed_content[key], str):
-                        parsed_content[key] = self._fix_bullet_points(parsed_content[key])
-                return parsed_content
+                
+                # Normalize the response format
+                # normalized_content = self._normalize_response_format(parsed_content)
+                
+                return parsed_content, response
             except json.JSONDecodeError:
                 # Fallback: extract content manually if JSON parsing fails
-                return self._parse_fallback_response(content, available_projects)
+                return self._parse_fallback_response(content), response
                 
         except Exception as e:
             print(f"Error generating note content: {e}")
-            return self._create_error_response(transcript)
+            return self._create_error_response(transcript), None
+        
+    def _parse_fallback_response(self, content: str) -> Dict[str, str]:
+            """Fallback parser if JSON response fails"""
+            print("Fallback: extracting content manually, JSON parsing failed")
+            sections = {
+                'project': 'Unknown',
+                'summary': 'Could not parse summary',
+                'completed': '- Could not parse completed tasks',
+                'blockers': '- Could not parse blockers',
+                'next_steps': '- Could not parse next steps',
+                'thoughts': '- Could not parse thoughts'
+            }
+            
+            # Simple regex-based extraction as fallback
+            patterns = {
+                'project': r'project["\s:]+([^"]+)',
+                'summary': r'summary["\s:]+([^"]+)',
+                'completed': r'completed["\s:]+([^"]+)',
+                'blockers': r'blockers["\s:]+([^"]+)',
+                'next_steps': r'next_steps["\s:]+([^"]+)',
+                'thoughts': r'thoughts["\s:]+([^"]+)'
+            }
+            
+            for key, pattern in patterns.items():
+                match = re.search(pattern, content, re.IGNORECASE)
+                if match:
+                    extracted_text = match.group(1).strip()
+                    sections[key] = self._fix_bullet_points(extracted_text)
+            
+            return sections
     
-    def _parse_fallback_response(self, content: str, available_projects: List[str]) -> Dict[str, str]:
-        """Fallback parser if JSON response fails"""
-        sections = {
-            'project': 'Unknown',
-            'summary': 'Could not parse summary',
-            'completed': '- Could not parse completed tasks',
-            'blockers': '- Could not parse blockers',
-            'next_steps': '- Could not parse next steps',
-            'thoughts': '- Could not parse thoughts'
-        }
+    def _normalize_response_format(self, parsed_content):
+        """Normalize response format to handle different LLM output structures"""
+        normalized = {}
         
-        # Simple regex-based extraction as fallback
-        patterns = {
-            'project': r'project["\s:]+([^"]+)',
-            'summary': r'summary["\s:]+([^"]+)',
-            'completed': r'completed["\s:]+([^"]+)',
-            'blockers': r'blockers["\s:]+([^"]+)',
-            'next_steps': r'next_steps["\s:]+([^"]+)',
-            'thoughts': r'thoughts["\s:]+([^"]+)'
-        }
+        # Standard fields that should exist in the response
+        fields = ['project', 'summary', 'completed', 'blockers', 'next_steps', 'thoughts']
         
-        for key, pattern in patterns.items():
-            match = re.search(pattern, content, re.IGNORECASE)
-            if match:
-                extracted_text = match.group(1).strip()
-                sections[key] = self._fix_bullet_points(extracted_text)
+        for field in fields:
+            # Get the value or default to "None mentioned"
+            value = parsed_content.get(field, "None mentioned")
+            
+            # Handle the case where value is a list (like from Deepseek)
+            if isinstance(value, list):
+                # Join list items with newlines
+                value = "\n".join(value)
+            
+            # If value is empty string, replace with "None mentioned"
+            if value == "":
+                value = "None mentioned"
+                
+            # Fix bullet points formatting
+            value = self._fix_bullet_points(value)
+            
+            normalized[field] = value
         
-        return sections
+        return normalized
     
     def _create_error_response(self, transcript: str) -> Dict[str, str]:
         """Create error response with original transcript"""
@@ -204,7 +255,7 @@ Please analyze this transcript and extract the structured information as request
         """Create complete daily note file"""
         
         # Generate content from transcript
-        content = self.generate_note_content(transcript_data['text'], available_projects)
+        content, _ = self.generate_note_content(transcript_data['text'], available_projects)
         
         # Extract detected project
         detected_project = content.get('project', 'Unknown')

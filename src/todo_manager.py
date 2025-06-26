@@ -2,6 +2,7 @@ from pathlib import Path
 import re
 from datetime import datetime
 from openai import OpenAI
+from .debug_utils import DebugLogger
 
 class TodoManager:
     def __init__(self, config, api_key=None, model=None, temperature=0.3):
@@ -17,7 +18,7 @@ class TodoManager:
             self.client = OpenAI(api_key=self.config.openai_api_key)
         
         # Use provided model or default from config
-        self.model = model if model is not None else self.config.gpt_model
+        self.model = model if model is not None else self.config.model
         self.temperature = temperature
     
     def create_system_prompt(self):
@@ -60,32 +61,59 @@ If no tasks are mentioned, return an empty array.
     def extract_todos(self, transcript_text, project_name):
         """Extract todo items from transcript"""
         user_prompt = f"""
-Project: {project_name}
+    Project: {project_name}
 
-Please extract any tasks, to-dos, or action items from this transcript:
+    Please extract any tasks, to-dos, or action items from this transcript:
 
-{transcript_text}
+    {transcript_text}
 
-Be especially attentive to phrases indicating future actions or tasks.
-Look for explicit mentions of priority like "high priority", "urgent", etc. before making priority judgments.
-"""
+    Be especially attentive to phrases indicating future actions or tasks.
+    Look for explicit mentions of priority like "high priority", "urgent", etc. before making priority judgments.
+    Respond with a JSON array of task objects, where each object has "task", "priority", and "context" fields.
+    If no tasks are found, return an empty array: []
+    """
 
         try:
+            system_prompt = self.create_system_prompt()
+            
+            # Prepare messages
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 temperature=self.temperature,
-                messages=[
-                    {"role": "system", "content": self.create_system_prompt()},
-                    {"role": "user", "content": user_prompt}
-                ]
+                messages=messages
             )
             
             content = response.choices[0].message.content
             
+            # For debugging - save the conversation
+            date_str = datetime.now().strftime('%Y-%m-%d')
+            if self.config.debug_llm:
+                DebugLogger.save_llm_conversation(
+                    self.config, 
+                    source_type='todo',
+                    model=self.model,
+                    temperature=self.temperature,
+                    messages=messages,
+                    response=content,
+                    reference_id=f"{date_str}_{project_name}_todos_{self.config.llm_provider}"
+                )
+            
             # Parse JSON response
             import json
             try:
+                # Clean up the response if needed
                 tasks = json.loads(content)
+                
+                # Ensure tasks is a list
+                if not isinstance(tasks, list):
+                    print("Warning: Expected an array of tasks but got something else")
+                    return []
+                    
                 return tasks
             except json.JSONDecodeError:
                 # Fallback extraction if JSON parsing fails

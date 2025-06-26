@@ -98,6 +98,10 @@ class Config:
                 'include_processing_timestamp': True,
                 'save_transcript': True,  # Enable transcript saving by default
                 'transcript_folder': 'transcripts'  # Default folder name
+            },
+            'debug': {
+                'save_llm_conversations': False,  # Set to True to enable debug mode
+                'debug_folder': 'debug_logs'      # Folder name for debug logs
             }
         }
             
@@ -182,12 +186,12 @@ class Config:
         return self.config_data['processing'].get('llm_provider', 'openai')
 
     @property
-    def gpt_model(self) -> str:
+    def model(self) -> str:
         return self.config_data['processing'].get('model', 'gpt-4o-mini')
 
     @property
     def weekly_summary_model(self) -> str:
-        return self.config_data['processing'].get('weekly_summary_model', self.gpt_model)
+        return self.config_data['processing'].get('weekly_summary_model', self.model)
     
     @property
     def temperature(self) -> float:
@@ -220,7 +224,17 @@ class Config:
     @property
     def assembly_model(self) -> str:
         return self.config_data['processing'].get('assembly_model', 'slam')
-        
+    
+    @property
+    def debug_llm(self) -> bool:
+        """Check if LLM conversation debugging is enabled"""
+        return self.config_data.get('debug', {}).get('save_llm_conversations', False)
+
+    @property
+    def debug_folder(self) -> str:
+        """Get the folder for debug logs"""
+        return self.config_data.get('debug', {}).get('debug_folder', 'debug_logs')
+
     def validate_config(self) -> bool:
         """Validate configuration and paths"""
         if not self.openai_api_key:
@@ -246,5 +260,5 @@ class Config:
         print(f"  Daily Notes: {self.daily_notes_path}")
         print(f"  Audio Inbox: {self.audio_input_path}")
         print(f"  Whisper Model: {self.whisper_model}")
-        print(f"  GPT Model: {self.gpt_model}")
+        print(f"  GPT Model: {self.model}")
         print(f"  Delete Audio After Processing: {self.delete_after_processing}")

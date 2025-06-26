@@ -99,13 +99,13 @@ IMPORTANT: Return ONLY the raw JSON without any code block formatting. Do NOT wr
         """Generate structured note content from transcript using GPT"""
         
         user_prompt = f"""
-    Available Projects: {', '.join(available_projects)}
+Available Projects: {', '.join(available_projects)}
 
-    Audio Transcript:
-    {transcript}
+Audio Transcript:
+{transcript}
 
-    Please analyze this transcript and extract the structured information as requested. Pay special attention to identifying which project is being discussed, even if the transcription might be slightly inaccurate.
-    """
+Please analyze this transcript and extract the structured information as requested. Pay special attention to identifying which project is being discussed, even if the transcription might be slightly inaccurate.
+"""
 
         try:
             system_prompt = self.create_system_prompt(available_projects)
@@ -116,12 +116,16 @@ IMPORTANT: Return ONLY the raw JSON without any code block formatting. Do NOT wr
                 {"role": "user", "content": user_prompt}
             ]
             
-            # A note request has around 1000 tokens (input and output) for an audio of 2:30 mins
-            response = self.client.chat.completions.create(
-                model=self.model,
-                temperature=self.temperature,
-                messages=messages
-            )
+            # Configure API call parameters with response_format for all providers
+            api_params = {
+                "model": self.model,
+                "temperature": self.temperature,
+                "messages": messages,
+                "response_format": {"type": "json_object"}  # Use JSON format for all providers
+            }
+            
+            # Make API call with parameters
+            response = self.client.chat.completions.create(**api_params)
             
             content = response.choices[0].message.content
             
@@ -142,10 +146,6 @@ IMPORTANT: Return ONLY the raw JSON without any code block formatting. Do NOT wr
             import json
             try:
                 parsed_content = json.loads(content)
-                
-                # Normalize the response format
-                # normalized_content = self._normalize_response_format(parsed_content)
-                
                 return parsed_content, response
             except json.JSONDecodeError:
                 # Fallback: extract content manually if JSON parsing fails
@@ -185,33 +185,6 @@ IMPORTANT: Return ONLY the raw JSON without any code block formatting. Do NOT wr
             
             return sections
     
-    def _normalize_response_format(self, parsed_content):
-        """Normalize response format to handle different LLM output structures"""
-        normalized = {}
-        
-        # Standard fields that should exist in the response
-        fields = ['project', 'summary', 'completed', 'blockers', 'next_steps', 'thoughts']
-        
-        for field in fields:
-            # Get the value or default to "None mentioned"
-            value = parsed_content.get(field, "None mentioned")
-            
-            # Handle the case where value is a list (like from Deepseek)
-            if isinstance(value, list):
-                # Join list items with newlines
-                value = "\n".join(value)
-            
-            # If value is empty string, replace with "None mentioned"
-            if value == "":
-                value = "None mentioned"
-                
-            # Fix bullet points formatting
-            value = self._fix_bullet_points(value)
-            
-            normalized[field] = value
-        
-        return normalized
-    
     def _create_error_response(self, transcript: str) -> Dict[str, str]:
         """Create error response with original transcript"""
         return {
@@ -222,6 +195,7 @@ IMPORTANT: Return ONLY the raw JSON without any code block formatting. Do NOT wr
             'next_steps': '- Review and manually edit this note',
             'thoughts': f'Raw transcript:\n{transcript}'
         }
+    
     def _save_transcript(self, transcript_text: str, date_str: str, project_name: str, output_path: Path) -> Path:
         """Save transcript to file and return path"""
         # Create transcript folder

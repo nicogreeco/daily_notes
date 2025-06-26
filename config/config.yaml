@@ -19,9 +19,9 @@ output:
   transcript_folder: "transcripts"
 
 processing:
-  llm_provider: openai  # Options: openai, deepseek
-  model: gpt-4.1-mini  # Model to use with selected provider: deepseek-chat/deepseek-reasoner - gpt-4.1-mini/gpt-4.1
-  weekly_summary_model: gpt-4.1 # Model for weekly summaries
+  llm_provider: deepseek  # Options: openai, deepseek
+  model: deepseek-chat  # Model to use with selected provider: deepseek-chat/deepseek-reasoner - gpt-4.1-mini/gpt-4.1
+  weekly_summary_model: deepseek-chat # Model for weekly summaries
   max_tokens: 4000
   temperature: 0.4
   # Audio transcription settings

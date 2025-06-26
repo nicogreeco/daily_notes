@@ -23,22 +23,28 @@ class TimelineGenerator:
         # Use provided model or default from config
         self.model = model if model is not None else self.config.weekly_summary_model
         self.temperature = temperature
-    
+        
     def get_week_number(self, date_str: str) -> Tuple[int, int]:
         """Get year and week number from date string (YYYY-MM-DD)"""
         date = datetime.strptime(date_str, '%Y-%m-%d')
         year = date.isocalendar()[0]
         week = date.isocalendar()[1]
         return (year, week)
-    
+        
     def get_week_range(self, year: int, week: int) -> Tuple[datetime, datetime]:
         """Get start and end dates for a week"""
-        # Find the first day of the given week
-        first_day = datetime.strptime(f'{year}-{week}-1', '%Y-%W-%w')
-        if first_day.weekday() != 0:  # If not Monday
-            first_day = first_day - timedelta(days=first_day.weekday())
+        # Create a date object for the first day of the year
+        first_day_of_year = datetime(year, 1, 1)
         
+        # Find the first day of the given week (Monday)
+        # Add (week - 1) weeks to the first day of the year, then adjust to Monday
+        first_day = first_day_of_year + timedelta(days=(week-1)*7)
+        while first_day.weekday() != 0:  # 0 is Monday
+            first_day -= timedelta(days=1)
+        
+        # Last day is 6 days later (Sunday)
         last_day = first_day + timedelta(days=6)
+        
         return (first_day, last_day)
     
     def find_project_daily_notes(self, project_name: str) -> Dict[str, Path]:
@@ -349,32 +355,32 @@ Please analyze these daily notes and generate a weekly summary.
     def get_weekly_template(self) -> str:
         """Get template for weekly summary"""
         return """---
-    tags: [timeline, weekly-summary, project/{project_name}]
-    week: {week_id}
-    date_range: {date_range}
-    ---
+tags: [timeline, weekly-summary, project/{project_name}]
+week: {week_id}
+date_range: {date_range}
+---
 
-    # Week {week_id}: {date_range} - {project_name}
+# Week {week_id}: {date_range} - {project_name}
 
-    ## 📊 Week Summary
-    {week_summary}
+## 📊 Week Summary
+{week_summary}
 
-    ## 🎯 Key Accomplishments
-    {accomplishments}
+## 🎯 Key Accomplishments
+{accomplishments}
 
-    ## 💭 Insights & Thoughts
-    {insights}
+## 💭 Insights & Thoughts
+{insights}
 
-    ## 🚧 Progress Indicators
-    {blockers}
+## 🚧 Progress Indicators
+{blockers}
 
-    ## 📝 Next Week Focus
-    {next_focus}
+## 📝 Next Week Focus
+{next_focus}
 
-    {completed_todos_section}
+{completed_todos_section}
 
-    ## 📄 Daily Notes References
-    {daily_notes_links}
+## 📄 Daily Notes References
+{daily_notes_links}
     """
 
     def find_completed_todos(self, project_name: str) -> List[Dict]:

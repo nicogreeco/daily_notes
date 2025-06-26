@@ -61,17 +61,21 @@ If no tasks are mentioned, return an empty array.
     def extract_todos(self, transcript_text, project_name):
         """Extract todo items from transcript"""
         user_prompt = f"""
-    Project: {project_name}
+Project: {project_name}
 
-    Please extract any tasks, to-dos, or action items from this transcript:
+Please extract any tasks, to-dos, or action items from this transcript:
 
-    {transcript_text}
+{transcript_text}
 
-    Be especially attentive to phrases indicating future actions or tasks.
-    Look for explicit mentions of priority like "high priority", "urgent", etc. before making priority judgments.
-    Respond with a JSON array of task objects, where each object has "task", "priority", and "context" fields.
-    If no tasks are found, return an empty array: []
-    """
+Be especially attentive to phrases indicating future actions or tasks.
+Look for explicit mentions of priority like "high priority", "urgent", etc. before making priority judgments.
+
+Your response must be a JSON array of task objects, where each object has "task", "priority", and "context" fields.
+The response should be a direct array, NOT an object containing a "tasks" array.
+For example: [ {{"task": "...", "priority": "...", "context": "..."}}, {{...}} ]
+
+If no tasks are found, return an empty array: []
+"""
 
         try:
             system_prompt = self.create_system_prompt()
@@ -82,10 +86,12 @@ If no tasks are mentioned, return an empty array.
                 {"role": "user", "content": user_prompt}
             ]
             
+            # Configure API call with response_format
             response = self.client.chat.completions.create(
                 model=self.model,
                 temperature=self.temperature,
-                messages=messages
+                messages=messages,
+                response_format={"type": "json_object"}  # Use JSON format for all providers
             )
             
             content = response.choices[0].message.content
@@ -106,23 +112,17 @@ If no tasks are mentioned, return an empty array.
             # Parse JSON response
             import json
             try:
-                # Clean up the response if needed
                 tasks = json.loads(content)
-                
-                # Ensure tasks is a list
-                if not isinstance(tasks, list):
-                    print("Warning: Expected an array of tasks but got something else")
-                    return []
-                    
                 return tasks
             except json.JSONDecodeError:
                 # Fallback extraction if JSON parsing fails
+                print(f"JSON parse error with content: {content[:100]}...")
                 return self._fallback_task_extraction(content)
                 
         except Exception as e:
             print(f"Error extracting todo items: {e}")
             return []
-    
+        
     def _fallback_task_extraction(self, content):
         """Fallback method to extract tasks if JSON parsing fails"""
         tasks = []
@@ -235,11 +235,32 @@ If no tasks are mentioned, return an empty array.
             })
             
         return todos
-    
+        
     def add_todos_to_project(self, project_name, new_todos, note_date=None):
         """Add todo items to the project's todo list file"""
         if not new_todos:
             print("No todo items to add")
+            return False
+        
+        # Ensure all todo items are dictionaries
+        valid_todos = []
+        for todo in new_todos:
+            if isinstance(todo, dict) and "task" in todo:
+                valid_todos.append(todo)
+            elif isinstance(todo, str):
+                # Convert string todo to dictionary format
+                print(f"Converting string todo to dictionary: {todo[:30]}...")
+                valid_todos.append({
+                    "task": todo,
+                    "priority": "medium",  # Default priority
+                    "context": ""          # Empty context
+                })
+        
+        if len(valid_todos) < len(new_todos):
+            print(f"⚠️ Note: {len(new_todos) - len(valid_todos)} invalid todo items were skipped")
+        
+        if not valid_todos:
+            print("No valid todo items to add after filtering")
             return False
             
         todo_path = self.get_todo_file_path(project_name)
@@ -249,7 +270,7 @@ If no tasks are mentioned, return an empty array.
         note_filename = f"{date_str}_{project_name}"
         
         # Create todo content for new items
-        new_todo_content = self.format_todos_markdown(new_todos, date_str, note_filename)
+        new_todo_content = self.format_todos_markdown(valid_todos, date_str, note_filename)
         
         # Create or update todo file
         if todo_path.exists():
@@ -263,7 +284,7 @@ If no tasks are mentioned, return an empty array.
             existing_todos = self.parse_existing_todos(existing_content)
             
             # Combine with new todos
-            all_todos = existing_todos + new_todos
+            all_todos = existing_todos + valid_todos
             
             # Sort todos
             sorted_todos = self.sort_todos(all_todos)
@@ -271,19 +292,25 @@ If no tasks are mentioned, return an empty array.
             # Format all todos
             formatted_todos = ""
             for todo in sorted_todos:
+                # Ensure todo is a dictionary
+                if not isinstance(todo, dict):
+                    print(f"⚠️ Skipping invalid todo item: {todo}")
+                    continue
+                    
                 # Get source from existing todo or use the new note filename
                 source = todo.get("source", note_filename)
                 
                 # Format with priority indicator
                 priority_indicator = ""
-                if todo.get("priority") == "high":
+                priority = todo.get("priority", "medium")
+                if priority == "high":
                     priority_indicator = "🔴 "
-                elif todo.get("priority") == "medium":
+                elif priority == "medium":
                     priority_indicator = "🟠 "
-                elif todo.get("priority") == "low":
+                elif priority == "low":
                     priority_indicator = "🟢 "
                     
-                task_text = todo["task"]
+                task_text = todo.get("task", "Unknown task")
                 context = todo.get("context", "")
                 
                 # Create link to source note
@@ -318,5 +345,5 @@ If no tasks are mentioned, return an empty array.
         with open(todo_path, 'w', encoding='utf-8') as f:
             f.write(todo_content)
             
-        print(f"✅ Added {len(new_todos)} todo items to {project_name}/todo.md")
+        print(f"✅ Added {len(valid_todos)} todo items to {project_name}/todo.md")
         return True

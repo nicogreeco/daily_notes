@@ -35,8 +35,6 @@ Voice-to-Notes is a Python application that converts audio recordings into struc
   
 - **Voice Recording** - Record directly through the app (desktop only)
 
-- **Resource Optimization** - **NEW**: Whisper models load only when needed for efficient memory usage
-
 ## 📋 Requirements
 
 - Python 3.8+

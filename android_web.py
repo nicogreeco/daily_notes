@@ -94,6 +94,13 @@ class WebProcessor:
         return success
     
     @capture_output
+    def extract_todos_from_audio(self, filename):
+        """Extract todos from a specific audio file"""
+        audio_path = self.processor.config.audio_input_path / filename
+        success = self.processor.process_audio_for_todos(audio_path)
+        return success
+    
+    @capture_output
     def generate_timeline_all(self):
         """Generate timeline for all projects"""
         results = self.processor.timeline_generator.process_all_projects()
@@ -156,16 +163,24 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                         background-color: #4CAF50; 
                         color: white; 
                         border: none; 
-                        padding: 15px 20px; 
+                        padding: 10px 15px; 
                         text-align: center; 
                         text-decoration: none; 
-                        font-size: 18px; 
-                        border-radius: 8px; 
+                        font-size: 16px; 
+                        border-radius: 5px; 
                         cursor: pointer;
+                        display: inline-block;
+                        margin-right: 5px;
+                    }}
+                    .button.large {{
+                        padding: 15px 20px;
+                        font-size: 18px;
+                        border-radius: 8px;
                         display: block;
                     }}
                     .button.blue {{ background-color: #2196F3; }}
                     .button.orange {{ background-color: #FF9800; }}
+                    .button.purple {{ background-color: #9C27B0; }}
                     .button.disabled {{ background-color: #cccccc; color: #666666; }}
                     .section {{ margin-bottom: 30px; }}
                     .card {{ 
@@ -176,7 +191,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                         margin-bottom: 15px;
                     }}
                     .file-list {{ 
-                        max-height: 200px; 
+                        max-height: 300px; 
                         overflow-y: auto; 
                         border: 1px solid #ddd;
                         border-radius: 5px;
@@ -187,9 +202,20 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                         padding: 10px 15px;
                         border-bottom: 1px solid #eee;
                         display: flex;
+                        justify-content: space-between;
                         align-items: center;
                     }}
                     .file-item:last-child {{ border-bottom: none; }}
+                    .file-name {{
+                        flex: 1;
+                        margin-right: 10px;
+                        word-break: break-all;
+                    }}
+                    .file-actions {{
+                        display: flex;
+                        gap: 5px;
+                        flex-wrap: nowrap;
+                    }}
                     select, button[type="submit"] {{
                         padding: 12px;
                         border: 1px solid #ddd;
@@ -235,20 +261,26 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 </style>
             </head>
             <body>
-                <h1> Daily Notes Processor</h1>
+                <h1>📝 Daily Notes Processor</h1>
                 
                 <div class="section">
                     <div class="card">
-                        <h2> Process Audio Files</h2>
+                        <h2>🎤 Process Audio Files</h2>
                         <p>Found {len(audio_files)} audio files in inbox</p>
                         
                         {('<div class="file-list">' + 
-                        ''.join([f'<div class="file-item"><a href="/process_file?filename={f}">{f}</a></div>' 
+                        ''.join([f'''<div class="file-item">
+                            <div class="file-name">{f}</div>
+                            <div class="file-actions">
+                                <a href="/process_file?filename={f}" class="button">Create Note</a>
+                                <a href="/extract_todos?filename={f}" class="button purple">Extract Todos</a>
+                            </div>
+                        </div>''' 
                                 for f in audio_files]) + 
                         '</div>') if audio_files else '<p>No audio files available</p>'}
                         
                         <div style="margin-top: 15px;">
-                            <a href="/process_audio" class="button {'disabled' if not audio_files else ''}">
+                            <a href="/process_audio" class="button large {'disabled' if not audio_files else ''}">
                                 Process All Audio Files
                             </a>
                         </div>
@@ -257,7 +289,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 
                 <div class="section">
                     <div class="card">
-                        <h2> Generate Timeline</h2>
+                        <h2>📅 Generate Timeline</h2>
                         <p>Found {len(projects)} projects</p>
                         
                         <form action="/generate_timeline_project" method="get" class="project-form">
@@ -268,7 +300,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                         </form>
                         
                         <div style="margin-top: 15px;">
-                            <a href="/generate_timeline_all" class="button blue {'disabled' if not projects else ''}">
+                            <a href="/generate_timeline_all" class="button blue large {'disabled' if not projects else ''}">
                                 Generate All Timelines
                             </a>
                         </div>
@@ -276,11 +308,11 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 </div>
                 
                 <div class="section">
-                    <a href="/settings" class="button orange"> Show Settings</a>
+                    <a href="/settings" class="button orange large">📋 Show Settings</a>
                 </div>
                 
                 <div class="section">
-                    <h2>Console Output</h2>
+                    <h2>💻 Console Output</h2>
                     <div id="status-area">
                         <p class="output-line">Ready. Select an action above.</p>
                     </div>
@@ -432,6 +464,57 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
                 <h2>Processing File: {filename}</h2>
                 <div class="loader"></div>
                 <p>Processing has started. You'll be redirected to the main page.</p>
+                <p><a href="/">Return to main page</a></p>
+            </body>
+            </html>
+            """
+            self.wfile.write(html.encode())
+            
+        # Extract todos from specific file
+        elif parsed_path.path == '/extract_todos':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            
+            filename = params.get('filename', [''])[0]
+            
+            # Run todo extraction in a separate thread
+            def extract_todos():
+                try:
+                    web_processor.extract_todos_from_audio(filename)
+                except Exception as e:
+                    print(f"Error extracting todos: {e}")
+            
+            threading.Thread(target=extract_todos).start()
+            
+            html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <meta http-equiv="refresh" content="1;url=/">
+                <title>Extracting Todos</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; }}
+                    .loader {{
+                        border: 8px solid #f3f3f3;
+                        border-top: 8px solid #9C27B0;
+                        border-radius: 50%;
+                        width: 50px;
+                        height: 50px;
+                        animation: spin 2s linear infinite;
+                        margin: 20px auto;
+                    }}
+                    @keyframes spin {{
+                        0% {{ transform: rotate(0deg); }}
+                        100% {{ transform: rotate(360deg); }}
+                    }}
+                </style>
+            </head>
+            <body>
+                <h2>Extracting Todos from: {filename}</h2>
+                <div class="loader"></div>
+                <p>Todo extraction has started. You'll be redirected to the main page.</p>
                 <p><a href="/">Return to main page</a></p>
             </body>
             </html>

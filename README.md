@@ -35,8 +35,6 @@ Voice-to-Notes is a Python application that converts audio recordings into struc
   
 - **Voice Recording** - Record directly through the app (desktop only)
 
-- **Resource Optimization** - **NEW**: Whisper models load only when needed for efficient memory usage
-
 ## 📋 Requirements
 
 - Python 3.8+
@@ -93,6 +91,7 @@ Voice-to-Notes is a Python application that converts audio recordings into struc
 3. Open `android_main.py` or `android_web.py` in Pydroid 3
 4. Install required packages through Pydroid's PIP menu
 5. Configure API keys and paths in the config file
+6. Use Folder Sync or similar apps to sync your Obsidian vault. 
 
 ## 🔧 Configuration
 

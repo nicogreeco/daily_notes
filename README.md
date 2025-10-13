@@ -2,8 +2,6 @@
 
 Voice-to-Notes is a Python application that converts audio recordings into structured, organized notes in your Obsidian vault. Record your thoughts on the go, and the app will transcribe them, categorize them by project, extract action items, and even generate weekly summaries.
 
-![Voice to Notes Banner](https://via.placeholder.com/800x200?text=Voice+to+Notes)
-
 ## 🌟 Features
 
 - **Audio Transcription** - Convert voice recordings to text using either:

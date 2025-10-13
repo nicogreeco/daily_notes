@@ -1,6 +1,6 @@
-# 🎙️ Voice-to-Notes: Automatic daily tracking of your work for Obsidian
+# 🎙️ Daily Notes: Automatic daily tracking of your work for Obsidian
 
-Voice-to-Notes is a Python application that converts audio recordings into structured, organized notes in your Obsidian vault, allowing fast and easy tracking of your progress on your projects. Record your thoughts on the go, and the app will transcribe them, categorize them by project, extract action items, and even generate weekly summaries.
+Daily Notes is a Python application that converts audio recordings into structured, organized notes in your Obsidian vault, allowing fast and easy tracking of your progress on your projects. Record your thoughts on the go, and the app will transcribe them, categorize them by project, extract action items, and even generate weekly summaries.
 
 ## 🌟 Features
 

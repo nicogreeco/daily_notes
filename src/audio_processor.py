@@ -2,10 +2,8 @@ import os
 import tempfile
 import subprocess
 from pathlib import Path
-try:
-    from faster_whisper import WhisperModel, BatchedInferencePipeline
-except:
-    print("Whisper module not found, only assemblyAi mode available")
+import json
+
     
 import assemblyai as aai
 from mutagen import File as MutagenFile
@@ -23,6 +21,8 @@ class AudioProcessor:
         # Whisper model will be loaded on-demand
     def _load_whisper_model(self):
         """Load Whisper model on-demand (lazy loading)"""
+        from faster_whisper import WhisperModel, BatchedInferencePipeline
+        
         if self.whisper_model is not None:
             # Model already loaded
             return self.whisper_model
@@ -50,51 +50,107 @@ class AudioProcessor:
             except Exception as e:
                 print(f"✗ Failed to load Whisper model: {e}")
                 raise
-    
+
     def validate_audio(self, audio_path, max_duration=None, min_duration=None):
-            """Validate audio file format and duration without ffprobe"""
-            if max_duration is None:
-                max_duration = self.config.max_duration
-            if min_duration is None:
-                min_duration = self.config.min_duration
+        """Validate audio file format and duration using ffprobe"""
+        if max_duration is None:
+            max_duration = self.config.max_duration
+        if min_duration is None:
+            min_duration = self.config.min_duration
 
-            audio_path = Path(audio_path)
+        audio_path = Path(audio_path)
 
-            # Check if file exists
-            if not audio_path.exists():
-                return False, f"File not found: {audio_path}"
+        # Check if file exists
+        if not audio_path.exists():
+            return False, f"File not found: {audio_path}"
 
-            # Check file extension
-            suffix = audio_path.suffix.lower()
-            if suffix not in self.config.supported_formats:
-                return False, f"Unsupported format: {suffix}"
+        # Check file extension
+        suffix = audio_path.suffix.lower()
+        if suffix not in self.config.supported_formats:
+            return False, f"Unsupported format: {suffix}"
 
-            # Try Mutagen first (supports mp3, flac, m4a, ogg, etc.)
+        # Get duration using ffprobe (preferred method)
+        try:
+            duration = self._get_duration_ffprobe(audio_path)
+            print(f"Duration via ffprobe: {duration:.2f}s")
+        except Exception as e:
+            print(f"ffprobe error: {e}")
+            
+            # Fallback for WAV files only if ffprobe fails
+            if suffix == ".wav":
+                try:
+                    with wave.open(str(audio_path), 'rb') as wf:
+                        frames = wf.getnframes()
+                        rate = wf.getframerate()
+                        duration = frames / float(rate)
+                    print(f"Duration via wave module: {duration:.2f}s")
+                except wave.Error as wave_error:
+                    return False, f"Cannot read WAV file: {wave_error}"
+            else:
+                return False, f"Could not determine audio duration: {e}"
+
+        # Check duration limits
+        if duration < min_duration:
+            return False, f"Audio too short: {duration:.1f}s (minimum: {min_duration}s)"
+        if duration > max_duration:
+            return False, f"Audio too long: {duration:.1f}s (maximum: {max_duration}s)"
+
+        return True, f"Valid audio file: {duration:.1f}s"
+
+    def _get_duration_ffprobe(self, filepath):
+        """Get audio duration using ffprobe"""
+        cmd = [
+            "ffprobe",
+            "-v", "error",
+            "-select_streams", "a:0",
+            "-show_entries", "stream=duration",
+            "-of", "json",
+            str(filepath)
+        ]
+        
+        result = subprocess.run(
+            cmd, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.PIPE, 
+            text=True,
+            timeout=30  # Add timeout to prevent hanging
+        )
+        
+        if result.returncode != 0:
+            # If stream duration is not available, try format duration
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "json",
+                str(filepath)
+            ]
+            
+            result = subprocess.run(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"ffprobe failed: {result.stderr}")
+            
             try:
-                audio = MutagenFile(str(audio_path))
-                if audio is None or not hasattr(audio.info, "length"):
-                    raise ValueError("Mutagen could not read duration")
-                duration = audio.info.length
-            except Exception:
-                # Fallback for WAV using wave module
-                if suffix == ".wav":
-                    try:
-                        with wave.open(str(audio_path), 'rb') as wf:
-                            frames = wf.getnframes()
-                            rate = wf.getframerate()
-                            duration = frames / float(rate)
-                    except wave.Error as e:
-                        return False, f"Cannot read WAV file: {e}"
-                else:
-                    return False, "Unable to determine duration (no ffprobe and unsupported by Mutagen)"
-
-            # Check duration limits
-            if duration < min_duration:
-                return False, f"Audio too short: {duration:.1f}s (minimum: {min_duration}s)"
-            if duration > max_duration:
-                return False, f"Audio too long: {duration:.1f}s (maximum: {max_duration}s)"
-
-            return True, f"Valid audio file: {duration:.1f}s"
+                info = json.loads(result.stdout)
+                return float(info['format']['duration'])
+            except (json.JSONDecodeError, KeyError, ValueError) as e:
+                raise Exception(f"Could not parse ffprobe format duration: {e}")
+        
+        try:
+            info = json.loads(result.stdout)
+            if 'streams' in info and info['streams'] and 'duration' in info['streams'][0]:
+                return float(info['streams'][0]['duration'])
+            else:
+                raise ValueError("No duration information in streams")
+        except (json.JSONDecodeError, KeyError, IndexError, ValueError) as e:
+            raise Exception(f"Could not parse ffprobe output: {e}")
     
     def normalize_audio(self, input_path):
         """Convert audio to optimal format for Whisper"""

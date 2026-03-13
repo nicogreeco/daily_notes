@@ -1,6 +1,6 @@
 audio:
-  delete_after_processing: false
-  input_folder: AudioInbox
+  delete_after_processing: true
+  input_folder: ../AudioInbox
   max_duration_seconds: 1800
   min_duration_seconds: 5
   supported_formats:
@@ -25,7 +25,7 @@ processing:
   max_tokens: 4000
   temperature: 0.4
   # Audio transcription settings
-  audio_model: assembly  # Options: whisper, assembly
+  audio_model: whisper  # Options: whisper, assembly
   # Whisper settings
   whisper_model: large-v3
   compute_type: float32  # Options: float32, float16, int8
@@ -38,11 +38,10 @@ processing:
   language_code: "en"
 
 project:
-  daily_notes_path: Vault/1. Projects/Daily Notes
+  daily_notes_path: Vault/0. Daily Notes
   projects_path: Vault/1. Projects
   vault_path: Vault
 
-  # Add this new section
 debug:
-  save_llm_conversations: true  # Set to true to enable debug mode
+  save_llm_conversations: false  # Set to true to enable debug mode
   debug_folder: "debug_logs"    # Folder where debug logs will be saved

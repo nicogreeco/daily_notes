@@ -1,4 +1,3 @@
-from openai import OpenAI
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any
@@ -6,18 +5,13 @@ import re
 from typing import List
 from .todo_manager import TodoManager
 from .debug_utils import DebugLogger
+from .llm_utils import create_llm_client, parse_json_response
 
 class NoteGenerator:
     def __init__(self, config,  model: str = "gpt-4o", temperature: float = 0.3):
         """Initialize OpenAI client"""
         self.config = config
-        if self.config.llm_provider == 'deepseek':
-            self.client = OpenAI(
-                api_key=self.config.deepseek_api_key, 
-                base_url="https://api.deepseek.com"
-            )
-        else:  # default to openai
-            self.client = OpenAI(api_key=self.config.openai_api_key)
+        self.client = create_llm_client(self.config)
         self.model = model if model is not None else self.config.model
         self.temperature = temperature
         self.todo_manager = TodoManager(config, temperature=temperature)
@@ -142,14 +136,15 @@ Please analyze this transcript and extract the structured information as request
                     reference_id=f"{date_str}_note_{self.config.llm_provider}"
                 )
             
-            # Try to parse JSON response
-            import json
-            try:
-                parsed_content = json.loads(content)
-                return parsed_content, response
-            except json.JSONDecodeError:
-                # Fallback: extract content manually if JSON parsing fails
-                return self._parse_fallback_response(content), response
+            parsed_content = parse_json_response(
+                content,
+                response_label="daily note",
+                fallback_parser=self._parse_fallback_response,
+                default=self._create_error_response(transcript),
+            )
+            if not isinstance(parsed_content, dict):
+                parsed_content = self._create_error_response(transcript)
+            return parsed_content, response
                 
         except Exception as e:
             print(f"Error generating note content: {e}")

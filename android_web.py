@@ -123,7 +123,8 @@ class WebProcessor:
     @capture_output
     def show_settings(self):
         """Show current settings"""
-        self.processor._show_settings()
+        for key, value in self.processor.get_settings_summary().items():
+            print(f"{key}: {value}")
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):

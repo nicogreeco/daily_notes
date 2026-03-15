@@ -5,4 +5,4 @@ AudioInbox/*
 *.pyc
 *mp3
 *.log
-*.txt
+daily_log.txt

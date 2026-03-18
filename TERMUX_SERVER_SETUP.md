@@ -123,17 +123,17 @@ Using the folder layout above, your `config/telegram_users.json` would look like
       "chat_id": "111111111",
       "name": "alice",
       "input_folder": "../storage/shared/DailyNotes/alice/AudioInbox",
-      "vault_path": "../storage/shared/DailyNotes/alice/Vault",
-      "daily_notes_path": "../storage/shared/DailyNotes/alice/Vault/0. Daily Notes",
-      "projects_path": "../storage/shared/DailyNotes/alice/Vault/1. Projects"
+      "vault_path": "storage/shared/DailyNotes/alice/Vault",
+      "daily_notes_path": "storage/shared/DailyNotes/alice/Vault/0. Daily Notes",
+      "projects_path": "storage/shared/DailyNotes/alice/Vault/1. Projects"
     },
     {
       "chat_id": "222222222",
       "name": "bob",
       "input_folder": "../storage/shared/DailyNotes/bob/AudioInbox",
-      "vault_path": "../storage/shared/DailyNotes/bob/Vault",
-      "daily_notes_path": "../storage/shared/DailyNotes/bob/Vault/0. Daily Notes",
-      "projects_path": "../storage/shared/DailyNotes/bob/Vault/1. Projects"
+      "vault_path": "storage/shared/DailyNotes/bob/Vault",
+      "daily_notes_path": "storage/shared/DailyNotes/bob/Vault/0. Daily Notes",
+      "projects_path": "storage/shared/DailyNotes/bob/Vault/1. Projects"
     }
   ]
 }
@@ -141,8 +141,8 @@ Using the folder layout above, your `config/telegram_users.json` would look like
 
 Important:
 
-- these paths are relative to the repo root, for example `~/daily_notes`
-- that is why they start with `../storage/shared/...`
+- `audio.input_folder` is resolved relative to the repo root, so it uses `../storage/shared/...`
+- `project.vault_path`, `project.daily_notes_path`, and `project.projects_path` are resolved relative to the repo parent (`~/`), so they use `storage/shared/...`
 - each user's FolderSync or `rclone` setup should sync only that user's `Vault/` folder
 
 ## 1. Install Termux
@@ -224,9 +224,9 @@ processing:
   language_code: en
 
 project:
-  vault_path: ../storage/shared/DailyNotes/Vault
-  daily_notes_path: ../storage/shared/DailyNotes/Vault/0. Daily Notes
-  projects_path: ../storage/shared/DailyNotes/Vault/1. Projects
+  vault_path: storage/shared/DailyNotes/Vault
+  daily_notes_path: storage/shared/DailyNotes/Vault/0. Daily Notes
+  projects_path: storage/shared/DailyNotes/Vault/1. Projects
 
 debug:
   save_llm_conversations: false
@@ -236,8 +236,9 @@ debug:
 Why these paths work:
 
 - the repo lives at `~/daily_notes`
-- `Config` resolves paths relative to the repo root
-- `../storage/shared/...` points to Termux shared storage
+- `audio.input_folder` is resolved from `~/daily_notes`
+- `project.*` paths are resolved from `~/`
+- so `../storage/shared/...` is correct for audio, while `storage/shared/...` is correct for vault and project paths
 
 ## 5. Add API Keys
 
@@ -313,17 +314,17 @@ Create `config/telegram_users.json` like this:
       "chat_id": "111111111",
       "name": "alice",
       "input_folder": "../storage/shared/DailyNotes/alice/AudioInbox",
-      "vault_path": "../storage/shared/DailyNotes/alice/Vault",
-      "daily_notes_path": "../storage/shared/DailyNotes/alice/Vault/0. Daily Notes",
-      "projects_path": "../storage/shared/DailyNotes/alice/Vault/1. Projects"
+      "vault_path": "storage/shared/DailyNotes/alice/Vault",
+      "daily_notes_path": "storage/shared/DailyNotes/alice/Vault/0. Daily Notes",
+      "projects_path": "storage/shared/DailyNotes/alice/Vault/1. Projects"
     },
     {
       "chat_id": "222222222",
       "name": "bob",
       "input_folder": "../storage/shared/DailyNotes/bob/AudioInbox",
-      "vault_path": "../storage/shared/DailyNotes/bob/Vault",
-      "daily_notes_path": "../storage/shared/DailyNotes/bob/Vault/0. Daily Notes",
-      "projects_path": "../storage/shared/DailyNotes/bob/Vault/1. Projects"
+      "vault_path": "storage/shared/DailyNotes/bob/Vault",
+      "daily_notes_path": "storage/shared/DailyNotes/bob/Vault/0. Daily Notes",
+      "projects_path": "storage/shared/DailyNotes/bob/Vault/1. Projects"
     }
   ]
 }

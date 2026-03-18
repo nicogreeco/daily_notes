@@ -29,9 +29,9 @@ processing:
   language_code: "en"
 
 project:
-  vault_path: ../storage/shared/DailyNotes/default/Vault
-  daily_notes_path: ../storage/shared/DailyNotes/default/Vault/0. Daily Notes
-  projects_path: ../storage/shared/DailyNotes/default/Vault/1. Projects
+  vault_path: storage/shared/DailyNotes/default/Vault
+  daily_notes_path: storage/shared/DailyNotes/default/Vault/0. Daily Notes
+  projects_path: storage/shared/DailyNotes/default/Vault/1. Projects
 
 debug:
   save_llm_conversations: true

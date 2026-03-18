@@ -19,9 +19,9 @@ output:
   transcript_folder: "transcripts"
 
 processing:
-  llm_provider: openai
-  model: gpt-4.1-mini
-  weekly_summary_model: gpt-4.1
+  llm_provider: deepseek
+  model: deepseek-chat
+  weekly_summary_model: deepseek-chat
   max_tokens: 4000
   temperature: 0.4
   audio_model: assembly

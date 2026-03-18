@@ -1,0 +1,38 @@
+audio:
+  delete_after_processing: false
+  input_folder: ../storage/shared/DailyNotes/default/AudioInbox
+  max_duration_seconds: 1800
+  min_duration_seconds: 5
+  supported_formats:
+    - .mp3
+    - .wav
+    - .m4a
+    - .aac
+    - .ogg
+    - .flac
+
+output:
+  date_format: "%Y-%m-%d"
+  include_audio_filename: true
+  include_processing_timestamp: true
+  save_transcript: true
+  transcript_folder: "transcripts"
+
+processing:
+  llm_provider: openai
+  model: gpt-4.1-mini
+  weekly_summary_model: gpt-4.1
+  max_tokens: 4000
+  temperature: 0.4
+  audio_model: assembly
+  assembly_model: slam
+  language_code: "en"
+
+project:
+  vault_path: ../storage/shared/DailyNotes/default/Vault
+  daily_notes_path: ../storage/shared/DailyNotes/default/Vault/0. Daily Notes
+  projects_path: ../storage/shared/DailyNotes/default/Vault/1. Projects
+
+debug:
+  save_llm_conversations: false
+  debug_folder: "debug_logs"

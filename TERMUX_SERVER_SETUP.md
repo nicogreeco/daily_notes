@@ -56,6 +56,95 @@ The daemon also creates these queue folders next to the inbox:
 - `~/storage/shared/DailyNotes/_archive`
 - `~/storage/shared/DailyNotes/_failed`
 
+## Multi-User Folder Layout on Termux
+
+For multiple users, give each person their own root folder inside `DailyNotes`.
+
+Example for two users:
+
+```text
+~/storage/shared/DailyNotes/
+  alice/
+    AudioInbox/
+    _processing/
+    _archive/
+    _failed/
+    Vault/
+      0. Daily Notes/
+      1. Projects/
+  bob/
+    AudioInbox/
+    _processing/
+    _archive/
+    _failed/
+    Vault/
+      0. Daily Notes/
+      1. Projects/
+```
+
+What belongs to each user:
+
+- `AudioInbox/`
+  - where Telegram-delivered audio lands for that user
+- `_processing/`
+  - temporary queue folder while a file is being processed
+- `_archive/`
+  - successfully processed audio files
+- `_failed/`
+  - failed audio files plus `.error.txt` sidecars
+- `Vault/0. Daily Notes/`
+  - generated daily notes
+- `Vault/1. Projects/`
+  - project folders, todo files, and timeline summaries
+
+Recommended creation commands:
+
+```bash
+mkdir -p ~/storage/shared/DailyNotes/alice/AudioInbox
+mkdir -p ~/storage/shared/DailyNotes/alice/Vault/"0. Daily Notes"
+mkdir -p ~/storage/shared/DailyNotes/alice/Vault/"1. Projects"
+
+mkdir -p ~/storage/shared/DailyNotes/bob/AudioInbox
+mkdir -p ~/storage/shared/DailyNotes/bob/Vault/"0. Daily Notes"
+mkdir -p ~/storage/shared/DailyNotes/bob/Vault/"1. Projects"
+```
+
+You do not need to create `_processing`, `_archive`, and `_failed` manually.
+The daemon creates them automatically next to each user's inbox.
+
+## Multi-User `telegram_users.json` With Matching Folders
+
+Using the folder layout above, your `config/telegram_users.json` would look like:
+
+```json
+{
+  "users": [
+    {
+      "chat_id": "111111111",
+      "name": "alice",
+      "input_folder": "../storage/shared/DailyNotes/alice/AudioInbox",
+      "vault_path": "../storage/shared/DailyNotes/alice/Vault",
+      "daily_notes_path": "../storage/shared/DailyNotes/alice/Vault/0. Daily Notes",
+      "projects_path": "../storage/shared/DailyNotes/alice/Vault/1. Projects"
+    },
+    {
+      "chat_id": "222222222",
+      "name": "bob",
+      "input_folder": "../storage/shared/DailyNotes/bob/AudioInbox",
+      "vault_path": "../storage/shared/DailyNotes/bob/Vault",
+      "daily_notes_path": "../storage/shared/DailyNotes/bob/Vault/0. Daily Notes",
+      "projects_path": "../storage/shared/DailyNotes/bob/Vault/1. Projects"
+    }
+  ]
+}
+```
+
+Important:
+
+- these paths are relative to the repo root, for example `~/daily_notes`
+- that is why they start with `../storage/shared/...`
+- each user's FolderSync or `rclone` setup should sync only that user's `Vault/` folder
+
 ## 1. Install Termux
 
 Install:

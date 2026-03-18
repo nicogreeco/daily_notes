@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "chat_id": "REPLACE_WITH_ILARIA_CHAT_ID",
+      "name": "ilaria",
+      "input_folder": "../storage/shared/DailyNotes/ilaria/AudioInbox",
+      "vault_path": "../storage/shared/DailyNotes/ilaria/Vault",
+      "daily_notes_path": "../storage/shared/DailyNotes/ilaria/Vault/0. Daily Notes",
+      "projects_path": "../storage/shared/DailyNotes/ilaria/Vault/1. Projects"
+    },
+    {
+      "chat_id": "REPLACE_WITH_NICOLA_CHAT_ID",
+      "name": "nicola",
+      "input_folder": "../storage/shared/DailyNotes/nicola/AudioInbox",
+      "vault_path": "../storage/shared/DailyNotes/nicola/Vault",
+      "daily_notes_path": "../storage/shared/DailyNotes/nicola/Vault/0. Daily Notes",
+      "projects_path": "../storage/shared/DailyNotes/nicola/Vault/1. Projects"
+    }
+  ]
+}

@@ -34,5 +34,5 @@ project:
   projects_path: ../storage/shared/DailyNotes/default/Vault/1. Projects
 
 debug:
-  save_llm_conversations: false
+  save_llm_conversations: true
   debug_folder: "debug_logs"

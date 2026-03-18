@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
-from urllib import error, request
+from urllib import error as urllib_error, request
 
 from src.android_audio_processor import AndroidAudioProcessor
 from src.config import Config
@@ -135,9 +135,9 @@ class TermuxProcessor:
 
             LOGGER.info("Created note: %s", note_path.name)
             return ProcessResult(success=True, audio_path=audio_path, note_path=note_path)
-        except Exception as error:  # pragma: no cover - runtime defensive logging
-            LOGGER.exception("Failed to process %s: %s", audio_path.name, error)
-            return ProcessResult(success=False, audio_path=audio_path, error=str(error))
+        except Exception as exc:  # pragma: no cover - runtime defensive logging
+            LOGGER.exception("Failed to process %s: %s", audio_path.name, exc)
+            return ProcessResult(success=False, audio_path=audio_path, error=str(exc))
 
 
 class StableFileDetector:
@@ -311,8 +311,8 @@ class TelegramBotClient:
                     "text": text[:4096],
                 },
             )
-        except Exception as error:  # pragma: no cover - network runtime logging
-            LOGGER.warning("Could not send Telegram message: %s", error)
+        except Exception as exc:  # pragma: no cover - network runtime logging
+            LOGGER.warning("Could not send Telegram message: %s", exc)
 
     def send_document(self, file_path: Path, caption: str = "") -> None:
         raise NotImplementedError("Use send_document_to_chat")
@@ -331,8 +331,8 @@ class TelegramBotClient:
                 "document",
                 file_path,
             )
-        except Exception as error:  # pragma: no cover - network runtime logging
-            LOGGER.warning("Could not send Telegram document %s: %s", file_path.name, error)
+        except Exception as exc:  # pragma: no cover - network runtime logging
+            LOGGER.warning("Could not send Telegram document %s: %s", file_path.name, exc)
 
     def _sanitize_filename(self, filename: str) -> str:
         safe = "".join(ch if ch.isalnum() or ch in "._- " else "_" for ch in filename).strip()
@@ -397,8 +397,8 @@ class TelegramBotClient:
                     "allowed_updates": ["message"],
                 },
             )
-        except Exception as error:  # pragma: no cover - network runtime logging
-            LOGGER.warning("Telegram polling failed: %s", error)
+        except Exception as exc:  # pragma: no cover - network runtime logging
+            LOGGER.warning("Telegram polling failed: %s", exc)
             return []
 
         for update in updates:
@@ -441,7 +441,7 @@ class TelegramBotClient:
                     chat_id,
                     f"Received `{local_path.name}` and queued it for processing.",
                 )
-            except error.URLError as download_error:
+            except urllib_error.URLError as download_error:
                 LOGGER.warning("Could not download Telegram file %s: %s", filename, download_error)
                 self.send_message_to_chat(chat_id, f"Failed to download `{filename}`.")
             except Exception as download_error:
@@ -618,8 +618,8 @@ class TermuxDaemon:
         except FileNotFoundError:
             runtime.detector.forget(source)
             return None
-        except OSError as error:
-            LOGGER.warning("Could not claim %s yet: %s", source.name, error)
+        except OSError as exc:
+            LOGGER.warning("Could not claim %s yet: %s", source.name, exc)
             return None
 
     def _archive_file(self, runtime: UserRuntime, source: Path) -> Path:
@@ -772,8 +772,8 @@ class TermuxDaemon:
                 time.sleep(self.poll_interval)
             except KeyboardInterrupt:
                 self.running = False
-            except Exception as error:  # pragma: no cover - runtime defensive logging
-                LOGGER.exception("Daemon loop error: %s", error)
+            except Exception as exc:  # pragma: no cover - runtime defensive logging
+                LOGGER.exception("Daemon loop error: %s", exc)
                 time.sleep(self.poll_interval)
 
         LOGGER.info("Daemon stopped")
@@ -867,8 +867,8 @@ def main() -> int:
 
         daemon.run_forever()
         return 0
-    except Exception as error:
-        LOGGER.exception("Startup failed: %s", error)
+    except Exception as exc:
+        LOGGER.exception("Startup failed: %s", exc)
         return 1
 
 

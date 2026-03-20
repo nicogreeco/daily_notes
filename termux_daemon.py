@@ -14,6 +14,7 @@ import json
 import logging
 import mimetypes
 import signal
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -56,6 +57,19 @@ class UserProfile:
     vault_path: str
     daily_notes_path: str
     projects_path: str
+    sync: Optional["SyncProfile"] = None
+
+
+@dataclass
+class SyncProfile:
+    enabled: bool
+    remote: str
+    remote_path: str
+    local_subpaths: List[str]
+    interval_minutes: int = 10
+    immediate_push_on_change: bool = True
+    notify_on_error: bool = True
+    rclone_binary: str = "rclone"
 
 
 @dataclass
@@ -64,6 +78,7 @@ class UserRuntime:
     processor: "TermuxProcessor"
     detector: "StableFileDetector"
     folders: QueueFolders
+    sync_manager: Optional["SyncManager"]
 
 
 @dataclass
@@ -469,6 +484,88 @@ class TelegramBotClient:
         return None
 
 
+class SyncManager:
+    def __init__(self, runtime: UserRuntime):
+        self.runtime = runtime
+        self.profile = runtime.profile.sync
+        self.last_periodic_sync = 0.0
+
+    def maybe_run_periodic_bisync(self) -> List[str]:
+        if self.profile is None or not self.profile.enabled:
+            return []
+
+        now = time.monotonic()
+        interval_seconds = max(1, self.profile.interval_minutes) * 60
+        if now - self.last_periodic_sync < interval_seconds:
+            return []
+
+        errors = self._run_for_all_subpaths("bisync")
+        if not errors:
+            self.last_periodic_sync = now
+        return errors
+
+    def push_changed_content(self) -> List[str]:
+        if self.profile is None or not self.profile.enabled or not self.profile.immediate_push_on_change:
+            return []
+
+        return self._run_for_all_subpaths("copy")
+
+    def _run_for_all_subpaths(self, mode: str) -> List[str]:
+        errors: List[str] = []
+        for subpath in self.profile.local_subpaths:
+            local_path = self.runtime.processor.config.vault_path / subpath
+            remote_path = self._remote_for_subpath(subpath)
+            error_text = self._run_rclone(mode, local_path, remote_path)
+            if error_text:
+                errors.append(error_text)
+        return errors
+
+    def _remote_for_subpath(self, subpath: str) -> str:
+        remote_root = self.profile.remote_path.strip("/")
+        clean_subpath = subpath.strip("/").replace("\\", "/")
+        if remote_root:
+            return f"{self.profile.remote}:{remote_root}/{clean_subpath}"
+        return f"{self.profile.remote}:{clean_subpath}"
+
+    def _run_rclone(self, mode: str, local_path: Path, remote_path: str) -> Optional[str]:
+        if not local_path.exists():
+            return None
+
+        command = [self.profile.rclone_binary, mode, str(local_path), remote_path]
+        LOGGER.info(
+            "Running rclone %s for %s on %s",
+            mode,
+            self.runtime.profile.name,
+            local_path.name,
+        )
+
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=900,
+                check=False,
+            )
+        except FileNotFoundError:
+            return f"rclone not found while running {mode} for {self.runtime.profile.name}"
+        except subprocess.TimeoutExpired:
+            return f"rclone {mode} timed out for {self.runtime.profile.name} ({local_path.name})"
+        except Exception as exc:  # pragma: no cover - runtime defensive logging
+            return f"rclone {mode} failed for {self.runtime.profile.name}: {exc}"
+
+        if result.returncode == 0:
+            return None
+
+        details = (result.stderr or result.stdout or "").strip()
+        if details:
+            details = details[:700]
+        return (
+            f"rclone {mode} failed for {self.runtime.profile.name} "
+            f"({local_path.name} -> {remote_path}): {details or 'unknown error'}"
+        )
+
+
 class TermuxDaemon:
     def __init__(
         self,
@@ -529,8 +626,13 @@ class TermuxDaemon:
                     processor=processor,
                     detector=StableFileDetector(self.stability_seconds),
                     folders=folders,
+                    sync_manager=None,
                 )
             )
+
+        for runtime in runtimes:
+            if runtime.profile.sync is not None and runtime.profile.sync.enabled:
+                runtime.sync_manager = SyncManager(runtime)
 
         return runtimes
 
@@ -548,6 +650,7 @@ class TermuxDaemon:
                         vault_path=entry["vault_path"],
                         daily_notes_path=entry["daily_notes_path"],
                         projects_path=entry["projects_path"],
+                        sync=self._parse_sync_profile(entry.get("sync")),
                     )
                 )
             if profiles:
@@ -563,10 +666,52 @@ class TermuxDaemon:
                     vault_path=self.base_config.config_data["project"]["vault_path"],
                     daily_notes_path=self.base_config.config_data["project"]["daily_notes_path"],
                     projects_path=self.base_config.config_data["project"]["projects_path"],
+                    sync=None,
                 )
             ]
 
         return []
+
+    def _parse_sync_profile(self, payload: Optional[dict]) -> Optional[SyncProfile]:
+        if not payload:
+            return None
+
+        enabled = payload.get("enabled", False)
+        if not enabled:
+            return None
+
+        remote = payload.get("remote", "").strip()
+        remote_path = payload.get("remote_path", "").strip()
+        local_subpaths = payload.get("local_subpaths") or ["0. Daily Notes", "1. Projects"]
+
+        if not remote:
+            raise ValueError("sync.remote is required when sync.enabled is true")
+
+        return SyncProfile(
+            enabled=True,
+            remote=remote,
+            remote_path=remote_path,
+            local_subpaths=list(local_subpaths),
+            interval_minutes=int(payload.get("interval_minutes", 10)),
+            immediate_push_on_change=bool(payload.get("immediate_push_on_change", True)),
+            notify_on_error=bool(payload.get("notify_on_error", True)),
+            rclone_binary=payload.get("rclone_binary", "rclone"),
+        )
+
+    def _report_sync_errors(self, runtime: UserRuntime, errors: List[str]) -> None:
+        if not errors:
+            return
+
+        for error_text in errors:
+            LOGGER.error(error_text)
+
+        sync_profile = runtime.profile.sync
+        if sync_profile is not None and sync_profile.notify_on_error:
+            combined = "\n\n".join(errors)
+            self.telegram.send_message_to_chat(
+                runtime.profile.chat_id,
+                f"Sync error for {runtime.profile.name}:\n{combined[:3500]}",
+            )
 
     def recover_processing_files(self) -> None:
         for runtime in self.users:
@@ -669,6 +814,8 @@ class TermuxDaemon:
                             result.note_path,
                             caption=f"Daily note ready: {result.note_path.name}",
                         )
+                    if runtime.sync_manager is not None:
+                        self._report_sync_errors(runtime, runtime.sync_manager.push_changed_content())
                 else:
                     failed = self._fail_file(runtime, claimed, "Processing failed. See termux_daemon log.")
                     LOGGER.error("Moved failed audio to %s for %s", failed.name, runtime.profile.name)
@@ -730,6 +877,8 @@ class TermuxDaemon:
                 summary_path,
                 caption=f"Weekly summary ready: {summary_path.name}",
             )
+        if runtime.sync_manager is not None:
+            self._report_sync_errors(runtime, runtime.sync_manager.push_changed_content())
 
     def maybe_run_timeline(self) -> None:
         if self.timeline_day is None or self.timeline_hour is None:
@@ -754,11 +903,12 @@ class TermuxDaemon:
         self.recover_processing_files()
         for runtime in self.users:
             LOGGER.info(
-                "User %s mapped to chat %s | inbox=%s | vault=%s",
+                "User %s mapped to chat %s | inbox=%s | vault=%s | sync=%s",
                 runtime.profile.name,
                 runtime.profile.chat_id,
                 runtime.folders.inbox,
                 runtime.processor.config.vault_path,
+                "enabled" if runtime.sync_manager is not None else "disabled",
             )
 
         while self.running:
@@ -769,6 +919,9 @@ class TermuxDaemon:
                         runtime.detector.mark_stable(download.path)
                 self.process_once()
                 self.maybe_run_timeline()
+                for runtime in self.users:
+                    if runtime.sync_manager is not None:
+                        self._report_sync_errors(runtime, runtime.sync_manager.maybe_run_periodic_bisync())
                 time.sleep(self.poll_interval)
             except KeyboardInterrupt:
                 self.running = False

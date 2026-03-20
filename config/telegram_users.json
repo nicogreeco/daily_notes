@@ -6,7 +6,19 @@
       "input_folder": "../storage/shared/DailyNotes/ilaria/AudioInbox",
       "vault_path": "storage/shared/DailyNotes/ilaria/Vault",
       "daily_notes_path": "storage/shared/DailyNotes/ilaria/Vault/0. Daily Notes",
-      "projects_path": "storage/shared/DailyNotes/ilaria/Vault/1. Projects"
+      "projects_path": "storage/shared/DailyNotes/ilaria/Vault/1. Projects",
+      "sync": {
+        "enabled": true,
+        "remote": "onedrive_ilaria",
+        "remote_path": "Obsidian/IlariaVault",
+        "local_subpaths": [
+          "0. Daily Notes",
+          "1. Projects"
+        ],
+        "interval_minutes": 10,
+        "immediate_push_on_change": true,
+        "notify_on_error": true
+      }
     },
     {
       "chat_id": "REPLACE_WITH_NICOLA_CHAT_ID",
@@ -14,7 +26,19 @@
       "input_folder": "../storage/shared/DailyNotes/nicola/AudioInbox",
       "vault_path": "storage/shared/DailyNotes/nicola/Vault",
       "daily_notes_path": "storage/shared/DailyNotes/nicola/Vault/0. Daily Notes",
-      "projects_path": "storage/shared/DailyNotes/nicola/Vault/1. Projects"
+      "projects_path": "storage/shared/DailyNotes/nicola/Vault/1. Projects",
+      "sync": {
+        "enabled": true,
+        "remote": "onedrive_nicola",
+        "remote_path": "Obsidian/NicolaVault",
+        "local_subpaths": [
+          "0. Daily Notes",
+          "1. Projects"
+        ],
+        "interval_minutes": 10,
+        "immediate_push_on_change": true,
+        "notify_on_error": true
+      }
     }
   ]
 }

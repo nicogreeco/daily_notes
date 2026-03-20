@@ -4,7 +4,7 @@ This setup keeps the system simple:
 
 - a Telegram bot moves audio files from your main phone to the old phone.
 - `termux_daemon.py` processes those files on the old phone.
-- `FolderSync` syncs the generated Obsidian vault back to OneDrive.
+- `rclone` can now sync the generated Obsidian vault back to OneDrive.
 - one bot can now serve multiple people, each with their own local inbox and vault paths.
 
 That means:
@@ -21,7 +21,7 @@ That means:
 4. `termux_daemon.py` waits until the file is stable, then processes it.
 5. The daemon routes the file to the correct user based on Telegram chat id.
 6. The daemon writes notes and todos into that user's local vault.
-7. FolderSync syncs each vault folder to the matching OneDrive account or folder pair.
+7. `rclone` syncs each vault folder to the matching OneDrive remote.
 8. Obsidian on each person's devices receives the updated notes through OneDrive.
 
 ## Project Scripts Refresher
@@ -316,7 +316,16 @@ Create `config/telegram_users.json` like this:
       "input_folder": "../storage/shared/DailyNotes/alice/AudioInbox",
       "vault_path": "storage/shared/DailyNotes/alice/Vault",
       "daily_notes_path": "storage/shared/DailyNotes/alice/Vault/0. Daily Notes",
-      "projects_path": "storage/shared/DailyNotes/alice/Vault/1. Projects"
+      "projects_path": "storage/shared/DailyNotes/alice/Vault/1. Projects",
+      "sync": {
+        "enabled": true,
+        "remote": "onedrive_alice",
+        "remote_path": "Obsidian/AliceVault",
+        "local_subpaths": ["0. Daily Notes", "1. Projects"],
+        "interval_minutes": 10,
+        "immediate_push_on_change": true,
+        "notify_on_error": true
+      }
     },
     {
       "chat_id": "222222222",
@@ -324,7 +333,16 @@ Create `config/telegram_users.json` like this:
       "input_folder": "../storage/shared/DailyNotes/bob/AudioInbox",
       "vault_path": "storage/shared/DailyNotes/bob/Vault",
       "daily_notes_path": "storage/shared/DailyNotes/bob/Vault/0. Daily Notes",
-      "projects_path": "storage/shared/DailyNotes/bob/Vault/1. Projects"
+      "projects_path": "storage/shared/DailyNotes/bob/Vault/1. Projects",
+      "sync": {
+        "enabled": true,
+        "remote": "onedrive_bob",
+        "remote_path": "Obsidian/BobVault",
+        "local_subpaths": ["0. Daily Notes", "1. Projects"],
+        "interval_minutes": 10,
+        "immediate_push_on_change": true,
+        "notify_on_error": true
+      }
     }
   ]
 }
@@ -335,7 +353,24 @@ How it works:
 - each Telegram chat id becomes one user
 - each user gets a separate inbox
 - each user gets a separate vault tree
-- each user can have their own FolderSync pair to OneDrive
+- each user can have their own `rclone` remote and sync policy to OneDrive
+
+Meaning of the `sync` block:
+
+- `enabled`
+  - turns automatic sync on for that user
+- `remote`
+  - the `rclone` remote name, for example `onedrive_alice`
+- `remote_path`
+  - the folder inside that remote where the vault subset should live
+- `local_subpaths`
+  - which subfolders under the local vault should be synced
+- `interval_minutes`
+  - how often the daemon runs scheduled `rclone bisync`
+- `immediate_push_on_change`
+  - if true, the daemon runs `rclone copy` right after new notes or weekly summaries are created
+- `notify_on_error`
+  - if true, sync failures are sent back to the user's Telegram chat
 
 If `telegram_users.json` exists, the daemon uses it.
 
@@ -344,18 +379,21 @@ If it does not exist, the daemon falls back to the older single-user mode with:
 - `config/telegram_allowed_chat_id.txt`
 - the default paths from `config/config.yaml`
 
-## 7. Set Up FolderSync for the Vault
+## 7. Set Up rclone for the Vault
 
-Keep using OneDrive only for the vault.
+Keep OneDrive only for the vault.
 
-Create one FolderSync pair per person:
+Create one `rclone` remote per person:
 
-- local: that person's local vault folder
-- remote: that person's OneDrive vault folder
+- `onedrive_alice`
+- `onedrive_bob`
 
-Recommended mode:
+Then map those remote names inside `config/telegram_users.json`.
 
-- two-way sync if you edit the vault on multiple devices
+Recommended behavior:
+
+- scheduled `rclone bisync` every few minutes
+- immediate `rclone copy` when the daemon creates new notes or weekly summaries
 
 Be aware:
 
@@ -420,6 +458,8 @@ Default behavior:
 - require a file to stay unchanged for 45 seconds
 - run timeline generation on Saturday at 22:00
 - poll Telegram during each loop
+- if a user has a `sync` block, run periodic `rclone bisync`
+- if a note or weekly summary is created, push changes immediately with `rclone copy`
 
 You can customize that:
 
@@ -489,7 +529,8 @@ If the phone or Termux dies mid-run:
 - share the recording to your Telegram bot chat
 - let the old phone process automatically
 - read progress updates and receive the final note back in Telegram
-- open Obsidian on that person's devices after FolderSync completes
+- open Obsidian on that person's devices after the next `rclone` sync
+  - usually after the immediate push or the next periodic `bisync`
 
 ## Troubleshooting
 
@@ -508,8 +549,12 @@ If the phone or Termux dies mid-run:
   - open the `.error.txt` sidecar file
   - inspect `logs/termux_daemon.log`
 - Vault does not appear on other devices
-  - check FolderSync status
-  - confirm the local vault path matches `config/config.yaml`
+  - check `rclone` manually with `rclone lsd <remote>:`
+  - confirm the remote name in the user's `sync` block
+  - confirm the local vault path matches the user's entry in `config/telegram_users.json`
+- Sync errors arrive in Telegram
+  - check that `rclone` is installed in Termux
+  - run one of the `rclone` commands manually once to verify auth and remote path
 
 ## Minimal Command Summary
 

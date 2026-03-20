@@ -1,11 +1,11 @@
 """
-Termux daemon for unattended audio ingestion on Android.
+Generic daemon for unattended audio ingestion.
 
 Recommended flow:
 - Telegram delivers audio files into the configured inbox folder.
 - This daemon waits for files to become stable before claiming them.
 - Notes and todos are generated and written into the configured vault.
-- FolderSync syncs the vault folder to OneDrive.
+- rclone can sync the vault folders to OneDrive or another remote.
 """
 
 import argparse
@@ -23,14 +23,14 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib import error as urllib_error, request
 
-from src.android_audio_processor import AndroidAudioProcessor
+from src.cloud_audio_processor import CloudAudioProcessor
 from src.config import Config
 from src.note_generator import NoteGenerator
 from src.timeline_generator import TimelineGenerator
 from src.todo_extractor import TodoExtractor
 
 
-LOGGER = logging.getLogger("termux_daemon")
+LOGGER = logging.getLogger("server_daemon")
 
 
 @dataclass
@@ -75,7 +75,7 @@ class SyncProfile:
 @dataclass
 class UserRuntime:
     profile: UserProfile
-    processor: "TermuxProcessor"
+    processor: "DaemonProcessor"
     detector: "StableFileDetector"
     folders: QueueFolders
     sync_manager: Optional["SyncManager"]
@@ -87,8 +87,8 @@ class DownloadedAudio:
     path: Path
 
 
-class TermuxProcessor:
-    """Minimal processor core for unattended Android/Termux usage."""
+class DaemonProcessor:
+    """Minimal processor core for unattended usage."""
 
     def __init__(self, config: Config):
         self.config = config
@@ -97,7 +97,7 @@ class TermuxProcessor:
         # The daemon archives processed files itself.
         self.config.config_data["audio"]["delete_after_processing"] = False
 
-        self.audio_processor = AndroidAudioProcessor(self.config)
+        self.audio_processor = CloudAudioProcessor(self.config)
         self.note_generator = NoteGenerator(
             self.config,
             model=self.config.model,
@@ -566,7 +566,7 @@ class SyncManager:
         )
 
 
-class TermuxDaemon:
+class ServerDaemon:
     def __init__(
         self,
         config_path: str,
@@ -590,7 +590,7 @@ class TermuxDaemon:
 
         self.telegram = TelegramBotClient(
             self.base_config.config_dir,
-            Path("logs") / "termux_daemon_state.json",
+            Path("logs") / "server_daemon_state.json",
             self.base_config.supported_formats,
         )
         self.telegram.set_chat_targets(self.users_by_chat_id)
@@ -607,7 +607,7 @@ class TermuxDaemon:
             config.config_data["project"]["daily_notes_path"] = profile.daily_notes_path
             config.config_data["project"]["projects_path"] = profile.projects_path
 
-            processor = TermuxProcessor(config)
+            processor = DaemonProcessor(config)
             inbox = processor.config.audio_input_path
             queue_root = inbox.parent
             folders = QueueFolders(
@@ -817,7 +817,7 @@ class TermuxDaemon:
                     if runtime.sync_manager is not None:
                         self._report_sync_errors(runtime, runtime.sync_manager.push_changed_content())
                 else:
-                    failed = self._fail_file(runtime, claimed, "Processing failed. See termux_daemon log.")
+                    failed = self._fail_file(runtime, claimed, "Processing failed. See server_daemon log.")
                     LOGGER.error("Moved failed audio to %s for %s", failed.name, runtime.profile.name)
                     self.telegram.send_message_to_chat(
                         runtime.profile.chat_id,
@@ -937,7 +937,7 @@ class TermuxDaemon:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Unattended Termux daemon for daily notes")
+    parser = argparse.ArgumentParser(description="Unattended server daemon for daily notes")
     parser.add_argument(
         "--config",
         type=str,
@@ -978,7 +978,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def configure_logging(log_dir: Path) -> None:
     log_dir.mkdir(parents=True, exist_ok=True)
-    log_file = log_dir / "termux_daemon.log"
+    log_file = log_dir / "server_daemon.log"
 
     logging.basicConfig(
         level=logging.INFO,
@@ -1001,7 +1001,7 @@ def main() -> int:
     configure_logging(Path("logs"))
 
     try:
-        daemon = TermuxDaemon(
+        daemon = ServerDaemon(
             args.config,
             poll_interval=args.poll_interval,
             stability_seconds=args.stability_seconds,

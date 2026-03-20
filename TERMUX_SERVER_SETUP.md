@@ -3,7 +3,7 @@
 This setup keeps the system simple:
 
 - a Telegram bot moves audio files from your main phone to the old phone.
-- `termux_daemon.py` processes those files on the old phone.
+- `server_daemon.py` processes those files on the old phone.
 - `rclone` can now sync the generated Obsidian vault back to OneDrive.
 - one bot can now serve multiple people, each with their own local inbox and vault paths.
 
@@ -18,7 +18,7 @@ That means:
 1. Record audio on your main phone.
 2. Share the recording to your Telegram bot chat.
 3. The daemon downloads the file into the local inbox on the old phone.
-4. `termux_daemon.py` waits until the file is stable, then processes it.
+4. `server_daemon.py` waits until the file is stable, then processes it.
 5. The daemon routes the file to the correct user based on Telegram chat id.
 6. The daemon writes notes and todos into that user's local vault.
 7. `rclone` syncs each vault folder to the matching OneDrive remote.
@@ -32,7 +32,7 @@ That means:
 - `server.py`
   - desktop watcher using `watchdog`
   - better suited to regular computers than Android sync folders
-- `termux_daemon.py`
+- `server_daemon.py`
   - unattended Android/Termux daemon
   - polls a Telegram bot for audio
   - downloads files into the inbox
@@ -298,7 +298,7 @@ To discover your chat id, the easiest approach is:
 
 1. temporarily start the daemon without `telegram_allowed_chat_id.txt` and without `telegram_users.json`
 2. send a message to the bot
-3. check `logs/termux_daemon.log` for the logged `chat_id`
+3. check `logs/server_daemon.log` for the logged `chat_id`
 4. save the resulting ids into `config/telegram_users.json`
 
 If you already know the chat ids, you can skip discovery mode and write the file directly.
@@ -407,7 +407,7 @@ Activate the environment:
 ```bash
 cd ~/daily_notes
 source .venv/bin/activate
-python termux_daemon.py --once
+python server_daemon.py --once
 ```
 
 If there is already an audio file in the inbox, the daemon should:
@@ -427,7 +427,7 @@ If something fails, the audio goes to `_failed` and a sidecar `.error.txt` file 
 
 Logs are written to:
 
-- `logs/termux_daemon.log`
+- `logs/server_daemon.log`
 
 ## 9. Run the Daemon Continuously
 
@@ -439,7 +439,7 @@ Start a session:
 cd ~/daily_notes
 tmux new -s daily-notes
 source .venv/bin/activate
-python termux_daemon.py
+python server_daemon.py
 ```
 
 Detach:
@@ -464,13 +464,13 @@ Default behavior:
 You can customize that:
 
 ```bash
-python termux_daemon.py --poll-interval 20 --stability-seconds 60 --timeline-day sat --timeline-hour 21
+python server_daemon.py --poll-interval 20 --stability-seconds 60 --timeline-day sat --timeline-hour 21
 ```
 
 Disable automatic timelines:
 
 ```bash
-python termux_daemon.py --timeline-day off
+python server_daemon.py --timeline-day off
 ```
 
 ## 10. Optional Auto-Start on Reboot
@@ -486,7 +486,7 @@ Example:
 termux-wake-lock
 cd ~/daily_notes || exit 1
 source .venv/bin/activate
-tmux new-session -d -s daily-notes "python termux_daemon.py"
+tmux new-session -d -s daily-notes "python server_daemon.py"
 ```
 
 Make it executable:
@@ -535,7 +535,7 @@ If the phone or Termux dies mid-run:
 ## Troubleshooting
 
 - No notes are created
-  - check `logs/termux_daemon.log`
+  - check `logs/server_daemon.log`
   - check API key files
   - confirm `audio_model: assembly`
 - Bot does not react
@@ -547,7 +547,7 @@ If the phone or Termux dies mid-run:
   - wait longer or raise `--stability-seconds`
 - Files move to `_failed`
   - open the `.error.txt` sidecar file
-  - inspect `logs/termux_daemon.log`
+  - inspect `logs/server_daemon.log`
 - Vault does not appear on other devices
   - check `rclone` manually with `rclone lsd <remote>:`
   - confirm the remote name in the user's `sync` block
@@ -563,7 +563,7 @@ Install and test:
 ```bash
 cd ~/daily_notes
 source .venv/bin/activate
-python termux_daemon.py --once
+python server_daemon.py --once
 ```
 
 Run continuously:
@@ -571,5 +571,5 @@ Run continuously:
 ```bash
 cd ~/daily_notes
 source .venv/bin/activate
-python termux_daemon.py
+python server_daemon.py
 ```

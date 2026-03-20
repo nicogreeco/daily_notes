@@ -52,9 +52,6 @@ pip install openai assemblyai PyYAML mutagen
 - `server_daemon.py`
   - generic Linux-first daemon entrypoint
   - recommended for unattended Telegram-driven processing
-- `termux_daemon.py`
-  - compatibility wrapper around `server_daemon.py`
-  - useful if you already launch the old name on Termux
 - `main.py`
   - interactive/manual CLI for desktop workflows
 - `server.py`
@@ -271,4 +268,3 @@ tmux attach -t daily-notes
 ## Termux Note
 
 This same cloud-first daemon also runs on an old Android phone through Termux. That is the setup currently used in practice here: Telegram for ingestion, AssemblyAI/OpenAI or DeepSeek for cloud processing, and `rclone` for OneDrive sync. In principle, the same codebase can also run on a Linux machine with a GPU and switch back to local Whisper for fully local processing.
-
